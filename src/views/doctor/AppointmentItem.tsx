@@ -30,7 +30,9 @@ export const AppointmentItem = ({ item, onAction }: Props) => {
             style={[styles.miniBtn, styles.btnConfirm]}
             onPress={() => onAction(item.id, 'confirmed')}
           >
-            <Text style={[styles.miniBtnText, { color: '#fff' }]}>确认预约</Text>
+            <Text style={[styles.miniBtnText, { color: '#fff' }]}>
+              确认预约
+            </Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -66,7 +68,12 @@ const styles = StyleSheet.create({
   pName: { fontSize: 18, fontWeight: 'bold', color: '#333' },
   date: { fontSize: 12, color: '#999' },
   aptDetail: { marginBottom: 12 },
-  aptType: { fontSize: 15, fontWeight: 'bold', color: '#007AFF', marginBottom: 4 },
+  aptType: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#007AFF',
+    marginBottom: 4,
+  },
   reason: { fontSize: 14, color: '#555' },
   btnRow: { flexDirection: 'row', gap: 10 },
   miniBtn: {
