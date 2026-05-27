@@ -7,9 +7,7 @@ import {
   TextInput,
   TouchableOpacity,
 } from 'react-native';
-import { USERS } from '../../data/users';
 import { AppToast } from '../../components/Toast';
-import { getMockLogs } from '../../data/mockData';
 import { manageApi } from '../../api';
 
 // 定义统一的用户展示接口
@@ -27,56 +25,10 @@ export default function Page1() {
 
   // 整合本地演示数据，用作接口不可用时的降级数据
   const fallbackUsers: UnifiedUser[] = useMemo(() => {
-    const list: UnifiedUser[] = [];
-
-    // 1. 添加管理员
-    if (USERS.admin) {
-      list.push({
-        id: 'admin_001',
-        username: USERS.admin.username,
-        name: USERS.admin.name,
-        role: '管理员',
-      });
-    }
-
-    // 2. 添加单例医生
-    if (USERS.doctor) {
-      list.push({
-        id: 'doc_main',
-        username: USERS.doctor.username,
-        name: USERS.doctor.name,
-        role: '医生',
-        info: USERS.doctor.specialty,
-      });
-    }
-
-    // 3. 添加医生列表
-    if (USERS.doctor_list) {
-      USERS.doctor_list.forEach((doc: any) => {
-        list.push({
-          id: doc.id,
-          username: doc.id, // 医生列表暂无独立username，用id代替
-          name: doc.name,
-          role: '医生',
-          info: doc.specialty,
-        });
-      });
-    }
-
-    // 4. 添加患者列表
-    if (USERS.patients) {
-      USERS.patients.forEach((pat: any, index: number) => {
-        list.push({
-          id: `pat_${index + 100}`, // 生成一个伪ID
-          username: pat.username,
-          name: pat.name,
-          role: '患者',
-          info: pat.phone,
-        });
-      });
-    }
-
-    return list;
+    // TODO: 替换为真实数据，暂时用 ct 占位
+    return [
+      { id: 'ct', username: 'ct', name: 'ct', role: '管理员' },
+    ];
   }, []);
 
   useEffect(() => {
@@ -169,14 +121,14 @@ export default function Page1() {
                           .join('  '),
                       )
                       .join('\n\n')
-                  : getMockLogs(item.role, item.name).join('\n\n');
+                  : 'ct'; // TODO: 替换为真实数据
 
                 AppToast.alert(`${item.name} 的操作日志`, logs, [
                   { text: '关闭' },
                 ]);
               })
               .catch(() => {
-                const logs = getMockLogs(item.role, item.name).join('\n\n');
+                const logs = 'ct'; // TODO: 替换为真实数据
                 AppToast.alert(`${item.name} 的操作日志`, logs, [
                   { text: '关闭' },
                 ]);
@@ -184,7 +136,7 @@ export default function Page1() {
             return;
           }
 
-          const logs = getMockLogs(item.role, item.name).join('\n\n');
+          const logs = 'ct'; // TODO: 替换为真实数据
           setTimeout(() => {
             AppToast.alert(`${item.name} 的操作日志`, logs, [{ text: '关闭' }]);
           }, 300);

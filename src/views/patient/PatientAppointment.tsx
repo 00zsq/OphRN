@@ -6,14 +6,16 @@ import {
   FlatList,
   TouchableOpacity,
 } from 'react-native';
-import { getCurrentUser, USERS } from '../../data/users';
+// TODO: 待接口实现 - 用户数据将从后端接口获取
+// import { getCurrentUser, USERS } from '../../data/users';
 import { AppToast } from '../../components/Toast';
 import { patientApi } from '../../api';
 
 export default function PatientAppointment() {
   const [activeTab, setActiveTab] = useState<'list' | 'mine'>('list');
   const [appointments, setAppointments] = useState<any[]>([]);
-  const [doctors, setDoctors] = useState<any[]>(USERS.doctor_list || []);
+  // TODO: 待接口实现 - 医生列表默认值暂时为空数组
+  const [doctors, setDoctors] = useState<any[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,7 +73,8 @@ export default function PatientAppointment() {
       {
         text: '确认',
         onPress: async () => {
-          const currentUser = getCurrentUser() || {};
+          // TODO: 待接口实现 - getCurrentUser 将从后端获取或使用本地存储
+          const currentUser: any = {};
           const newAppt = {
             id: Date.now().toString(),
             docName: doctor.name,

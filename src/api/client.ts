@@ -15,7 +15,7 @@ type RequestOptions = {
   skipAuth?: boolean;
 };
 
-const DEFAULT_API_BASE_URL = 'http://120.79.247.123:8081';
+const DEFAULT_API_BASE_URL = 'http://120.79.247.123:8080';
 
 let apiBaseUrl = DEFAULT_API_BASE_URL;
 let authToken = '';
@@ -112,7 +112,7 @@ export async function request<T = unknown>(
 }
 
 export const assertSuccess = <T>(result: ApiResult<T>) => {
-  if (typeof result.code === 'number' && result.code !== 0) {
+  if (typeof result.code === 'number' && result.code !== 1) {
     throw new Error(result.msg || '接口请求失败');
   }
 

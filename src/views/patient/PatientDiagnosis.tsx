@@ -13,13 +13,18 @@ import {
 } from 'react-native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker'; // 新增 launchCamera
 import RNFS from 'react-native-fs';
-import { DIAGNOSIS_RESULTS_LIST, FOLLOW_UP_PLAN } from '../../data/mockData';
+// TODO: 待接口实现 - 随访计划数据后续可从配置或接口获取，此处暂时保留静态结构或移至常量
+const FOLLOW_UP_PLAN = {
+  title: '常规复查',
+  frequency: '每3个月一次',
+};
+
 import { AppToast } from '../../components/Toast';
 import { diagnosisApi, reportApi } from '../../api';
-import { getCurrentUser } from '../../data/users';
+// import { getCurrentUser } from '../../data/users'; // 已移除 mock 用户依赖
 
-// 引入本地 PDF 资源
-const reportAsset = require('../../data/report.pdf');
+// TODO: 待接口实现 - PDF 报告资源将不再使用本地文件，统一通过 API 下载
+// const reportAsset = require('../../data/report.pdf');
 
 export default function PatientDiagnosis() {
   const [leftEyeUri, setLeftEyeUri] = useState<string | null>(null);
@@ -33,8 +38,13 @@ export default function PatientDiagnosis() {
   // 新增：下载状态防止重复点击
   const [downloading, setDownloading] = useState(false);
 
-  // 新增：用于存储本次随机抽取的诊断结果，默认取第一个以防空
-  const [currentResult, setCurrentResult] = useState(DIAGNOSIS_RESULTS_LIST[0]);
+  // 新增：用于存储诊断结果，初始化为默认空状态
+  const [currentResult, setCurrentResult] = useState({
+    riskLevel: '正常',
+    disease: '待诊断',
+    summary: '诊断完成后将在此显示详细分析结果',
+    suggestion: '请先上传眼底照片并点击提交诊断',
+  });
   const [currentReportId, setCurrentReportId] = useState<number | null>(null);
 
   // 重构：原 pickImage 改名为 openGallery，保留原有逻辑
@@ -118,26 +128,30 @@ export default function PatientDiagnosis() {
     }
     setStatus('diagnosing');
 
-    const randomIndex = Math.floor(
-      Math.random() * DIAGNOSIS_RESULTS_LIST.length,
-    );
-    setCurrentResult(DIAGNOSIS_RESULTS_LIST[randomIndex]);
-
+    // 计算复查日期
     const now = new Date();
     now.setMonth(now.getMonth() + 3);
-
-    // 格式化为 YYYY-MM-DD
     const year = now.getFullYear();
     const month = (now.getMonth() + 1).toString().padStart(2, '0');
     const day = now.getDate().toString().padStart(2, '0');
     const calculatedDate = `${year}-${month}-${day}`;
-
     setNextVisitDate(calculatedDate);
 
+    // 重置结果状态为“分析中”或默认值，等待 API 返回真实数据
+    setCurrentResult({
+      riskLevel: '分析中...',
+      disease: '正在计算',
+      summary: 'AI 正在处理图像特征，请稍候...',
+      suggestion: '诊断完成后将显示建议',
+    });
+
     try {
-      const currentUser = getCurrentUser() || {};
+      // TODO: 待接口实现 - 用户数据应从认证上下文或本地安全存储获取
+      // const currentUser = getCurrentUser() || {};
+      const currentUser: any = {}; 
+      
       const patient = {
-        id: Number(currentUser.patientId || currentUser.userId || currentUser.id),
+        id: Number(currentUser.patientId || currentUser.userId || currentUser.id) || 0,
         name: currentUser.name || currentUser.username || '患者',
         idCard: currentUser.idCard,
         age: Number(currentUser.age) || undefined,
@@ -149,6 +163,9 @@ export default function PatientDiagnosis() {
         [leftEyeUri],
         [rightEyeUri],
       );
+
+      // 假设 API 返回的数据结构中包含诊断详情，这里需要根据实际 API 响应更新 currentResult
+      // 目前仅处理 Report ID 的获取
       const firstRecord = result.data?.[0];
       const reportOrRecordId = firstRecord
         ? Number(Object.values(firstRecord)[0])
@@ -164,9 +181,29 @@ export default function PatientDiagnosis() {
         } catch (error) {
           console.warn('Generate report failed:', error);
         }
+        
+        // TODO: 待接口实现 - 根据 result 更新 currentResult 的真实诊断数据
+        // 例如: setCurrentResult(result.data[0].diagnosisDetails);
+      } else {
+         // 如果 API 没有返回预期 ID，至少更新状态为完成，并显示通用结果
+         setCurrentResult({
+            riskLevel: '已完成',
+            disease: '详见报告',
+            summary: '诊断流程已结束，但未获取到详细结构化数据。',
+            suggestion: '请下载 PDF 报告查看详细信息。',
+         });
       }
+
     } catch (error) {
       console.warn('Diagnosis analyze failed:', error);
+      AppToast.show('诊断服务异常，请稍后重试', 'error');
+      // 出错时恢复状态或显示错误信息
+      setCurrentResult({
+        riskLevel: '错误',
+        disease: '诊断失败',
+        summary: '连接服务器失败或处理出错。',
+        suggestion: '请检查网络后重试。',
+      });
     } finally {
       setStatus('finished');
     }
@@ -296,16 +333,18 @@ export default function PatientDiagnosis() {
 
       console.log('Start downloading to:', destPath);
 
-      const downloadSource = currentReportId
-        ? {
-            uri: reportApi.downloadUrl(currentReportId, 'pdf'),
-            headers: reportApi.downloadHeaders(),
-          }
-        : null;
+      let source: { uri: string; headers?: Record<string, string> } | null = null;
 
-      const source = downloadSource || Image.resolveAssetSource(reportAsset);
+      if (currentReportId) {
+        source = {
+          uri: reportApi.downloadUrl(currentReportId, 'pdf'),
+          headers: reportApi.downloadHeaders(),
+        };
+      } 
+      
+      // TODO: 待接口实现 - 如果没有 Report ID，暂时无法下载，移除本地 asset 回退逻辑
       if (!source || !source.uri) {
-        throw new Error('无法解析报告文件资源');
+        throw new Error('暂无可下载的报告 ID，请先完成诊断');
       }
 
       const downloadOptions: RNFS.DownloadFileOptions = {
@@ -314,7 +353,7 @@ export default function PatientDiagnosis() {
         begin: res => console.log('Download begin', res),
       };
 
-      if ('headers' in source) {
+      if ('headers' in source && source.headers) {
         downloadOptions.headers = source.headers;
       }
 
@@ -370,11 +409,9 @@ export default function PatientDiagnosis() {
             <Text style={styles.planText}>
               频率: {FOLLOW_UP_PLAN.frequency}
             </Text>
-            {/* 使用动态计算的日期，而不是 mockData 中的静态日期 */}
             <Text style={styles.planText}>建议复查: {nextVisitDate}</Text>
           </View>
 
-          {/* 此按钮触发 addToCalendar */}
           <TouchableOpacity style={styles.btnCalendar} onPress={addToCalendar}>
             <Text style={styles.btnText}>同步至手机日历与提醒</Text>
           </TouchableOpacity>
@@ -418,7 +455,7 @@ export default function PatientDiagnosis() {
       <View style={styles.uploadRow}>
         <TouchableOpacity
           style={styles.uploadBox}
-          onPress={() => handleSelectImage('left')} // 修改此处调用
+          onPress={() => handleSelectImage('left')}
         >
           {leftEyeUri ? (
             <Image source={{ uri: leftEyeUri }} style={styles.thumb} />
@@ -429,7 +466,7 @@ export default function PatientDiagnosis() {
 
         <TouchableOpacity
           style={styles.uploadBox}
-          onPress={() => handleSelectImage('right')} // 修改此处调用
+          onPress={() => handleSelectImage('right')}
         >
           {rightEyeUri ? (
             <Image source={{ uri: rightEyeUri }} style={styles.thumb} />
@@ -486,7 +523,6 @@ const styles = StyleSheet.create({
   btnText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
   loadingBox: { alignItems: 'center', marginTop: 20 },
 
-  // 结果页样式
   resultCard: {
     backgroundColor: 'white',
     padding: 20,

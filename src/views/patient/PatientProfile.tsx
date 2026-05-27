@@ -10,12 +10,13 @@ import {
   ImageBackground,
 } from 'react-native';
 import { AppToast } from '../../components/Toast';
-import { getCurrentUser } from '../../data/users';
+// TODO: 待接口实现 - 用户数据将从后端接口获取
+// import { getCurrentUser } from '../../data/users';
 import { patientApi } from '../../api';
 
 export default function PatientProfile() {
-  const currentUser = getCurrentUser() || {};
-  // 直接从 user 对象获取数据，如果不存在则赋在空数组
+  // TODO: 待接口实现 - currentUser 将从后端接口获取
+  const currentUser: any = {};
   const {
     medicalHistory = [],
     treatments = [],

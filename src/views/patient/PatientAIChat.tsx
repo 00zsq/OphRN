@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { AI_KNOWLEDGE_BASE } from '../../data/mockData';
 import { aiApi } from '../../api';
 
 interface Message {
@@ -56,10 +55,7 @@ export default function PatientAIChat() {
     setText('');
     setIsTyping(true);
 
-    const matched = AI_KNOWLEDGE_BASE.find(k => inputText.includes(k.question));
-    const fallbackAnswer = matched
-      ? matched.answer
-      : '抱歉，我的知识库目前主要涵盖常见眼病护理，您可以尝试问 "青光眼如何治疗" 或 "眼部日常护理"。';
+    const fallbackAnswer = '抱歉，我的知识库目前主要涵盖常见眼病护理，您可以尝试问 "青光眼如何治疗" 或 "眼部日常护理"。';
 
     // 模拟流式输出效果
     let currentText = '';
@@ -149,15 +145,7 @@ export default function PatientAIChat() {
       </View>
       {/* 快捷提问提示 */}
       <View style={styles.chips}>
-        {AI_KNOWLEDGE_BASE.map((k, i) => (
-          <TouchableOpacity
-            key={i}
-            style={styles.chip}
-            onPress={() => setText(k.question)}
-          >
-            <Text style={{ fontSize: 12, color: '#555' }}>{k.question}</Text>
-          </TouchableOpacity>
-        ))}
+        <Text style={{ fontSize: 12, color: '#999' }}>快捷问题功能待接口实现</Text>
       </View>
     </KeyboardAvoidingView>
   );

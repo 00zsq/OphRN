@@ -6,8 +6,6 @@ import {
   TouchableOpacity,
   FlatList,
 } from 'react-native';
-import { USERS } from '../../data/users';
-import { DIAGNOSIS_RESULTS_LIST } from '../../data/mockData';
 import { AppToast } from '../../components/Toast';
 import { manageApi, reportApi } from '../../api';
 
@@ -16,11 +14,8 @@ import { DiagnosisItem } from './DiagnosisItem';
 import { AppointmentItem } from './AppointmentItem';
 import { ReviewModal } from './ReviewModal';
 
-// 模拟眼底图像资源
-const MOCK_IMAGES = [
-  require('../../data/left.jpg'),
-  require('../../data/right.jpg'),
-];
+// TODO: 使用真实数据
+const MOCK_IMAGES: any[] = [];
 
 export default function Page2() {
   const [activeTab, setActiveTab] = useState<'diagnosis' | 'appointment'>(
@@ -29,30 +24,15 @@ export default function Page2() {
 
   // --- 场景一数据 ---
   const [diagnosisQueue, setDiagnosisQueue] = useState(() => {
-    return USERS.patients.map((patient, index) => {
-      const diagnosis =
-        DIAGNOSIS_RESULTS_LIST[index % DIAGNOSIS_RESULTS_LIST.length];
-      return {
-        id: `diag_${index}`,
-        recordId: undefined,
-        patientName: patient.name,
-        age: patient.age,
-        gender: patient.gender,
-        date: '2025-05-20 09:30',
-        image: MOCK_IMAGES[index % MOCK_IMAGES.length],
-        aiResult: diagnosis,
-        status: 'pending' as 'pending' | 'reviewed',
-        doctorAdvice: '',
-        nextStep: '',
-      };
-    });
+    // TODO: 使用真实数据
+    return [];
   });
 
   // --- 场景二数据 ---
   const [appointments, setAppointments] = useState([
     {
       id: 'apt_1',
-      patientName: USERS.patients[0].name,
+      patientName: 'ct', // TODO: 使用真实数据
       time: '2025-05-22 09:00',
       type: '专家门诊',
       reason: '青光眼术后复查',
@@ -60,7 +40,7 @@ export default function Page2() {
     },
     {
       id: 'apt_2',
-      patientName: USERS.patients[1].name,
+      patientName: 'ct', // TODO: 使用真实数据
       time: '2025-05-23 14:30',
       type: '普通门诊',
       reason: '白内障咨询',
@@ -84,23 +64,53 @@ export default function Page2() {
 
         const remoteQueue = (historyResult.data?.records || []).map(
           (record: any, index: number) => {
-            const diagnosis =
-              DIAGNOSIS_RESULTS_LIST[index % DIAGNOSIS_RESULTS_LIST.length];
+            let parsedDisease: string[] = [];
+            try {
+              const left = record.leftDiseaseResults
+                ? JSON.parse(record.leftDiseaseResults)
+                : [];
+              const right = record.rightDiseaseResults
+                ? JSON.parse(record.rightDiseaseResults)
+                : [];
+              parsedDisease = Array.from(new Set([...left, ...right]));
+            } catch (e) {
+              // ignore
+            }
+
+            const diseaseStr =
+              parsedDisease.length > 0
+                ? parsedDisease.join(', ')
+                : '暂无确诊数据';
+            const isNormal =
+              parsedDisease.length === 1 && parsedDisease[0] === '正常';
+            const riskLevelStr = isNormal
+              ? '低风险'
+              : parsedDisease.length > 0
+              ? '高风险'
+              : '待评估';
+
             return {
               id: String(record.id || record.recordId || `diag_${index}`),
               recordId: Number(record.id || record.recordId),
               patientName:
-                record.patientName || record.name || record.patient?.name || '患者',
+                record.patientName ||
+                record.name ||
+                record.patient?.name ||
+                (record.patientId ? `患者 (ID: ${record.patientId})` : '患者'),
               age: record.age || record.patient?.age || '-',
               gender: record.sex || record.gender || record.patient?.sex || '-',
-              date: record.createTime || record.diagnosisTime || record.time || '-',
-              image: record.leftImage || record.image || MOCK_IMAGES[0],
+              date:
+                record.createTime || record.diagnosisTime || record.time || '-',
+              image:
+                record.leftImage ||
+                record.rightImage ||
+                record.image ||
+                MOCK_IMAGES[0],
               aiResult: {
-                ...diagnosis,
-                riskLevel: record.riskLevel || diagnosis.riskLevel,
-                disease: record.disease || record.diagnosis || diagnosis.disease,
-                summary: record.summary || diagnosis.summary,
-                suggestion: record.suggestion || diagnosis.suggestion,
+                riskLevel: record.riskLevel || riskLevelStr,
+                disease: record.disease || record.diagnosis || diseaseStr,
+                summary: record.summary || 'AI 正在处理图像特征，请稍候...',
+                suggestion: record.suggestion || '目前暂无处理建议',
               },
               status: record.status === 'reviewed' ? 'reviewed' : 'pending',
               doctorAdvice: record.doctorAdvice || '',
@@ -112,7 +122,8 @@ export default function Page2() {
         const remoteAppointments = (appointmentResult.data || []).map(
           (apt: any) => ({
             id: String(apt.id),
-            patientName: apt.patientName || `患者 ${apt.patientId || ''}`.trim(),
+            patientName:
+              apt.patientName || `患者 ${apt.patientId || ''}`.trim(),
             time: apt.appointmentTime || apt.createTime || '-',
             type: '门诊预约',
             reason: apt.reason || '患者预约',
@@ -127,7 +138,8 @@ export default function Page2() {
 
         if (!cancelled) {
           if (remoteQueue.length) setDiagnosisQueue(remoteQueue as any);
-          if (remoteAppointments.length) setAppointments(remoteAppointments as any);
+          if (remoteAppointments.length)
+            setAppointments(remoteAppointments as any);
         }
       } catch (error) {
         console.warn('Load doctor work failed:', error);
@@ -147,7 +159,11 @@ export default function Page2() {
     setModalVisible(true);
   };
 
-  const handleSaveReview = async (id: string, advice: string, nextStep: string) => {
+  const handleSaveReview = async (
+    id: string,
+    advice: string,
+    nextStep: string,
+  ) => {
     const updatedQueue = diagnosisQueue.map(item =>
       item.id === id
         ? {

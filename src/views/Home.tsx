@@ -7,9 +7,9 @@ import {
   TextInput,
   TouchableOpacity,
 } from 'react-native';
-import { USERS, setCurrentUser } from '../data/users';
+import { setCurrentUser } from '../store/user';
 import { AppToast } from '../components/Toast';
-import { patientApi, setAuthToken, userApi } from '../api';
+import { setAuthToken, request } from '../api/client';
 
 // 背景图路径需要调整层级
 const bgImg = require('../assets/bgimg.jpg');
@@ -19,38 +19,6 @@ export default function Home({ navigation }: any) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  const loginByMockUser = () => {
-    if (!role) return;
-
-    let targetUser: any = null;
-
-    if (role === 'patient') {
-      // 在患者列表中查找
-      targetUser = USERS.patients.find(
-        p => p.username === username && p.password === password,
-      );
-    } else {
-      // 管理员和医生
-      const user = USERS[role as keyof typeof USERS] as any;
-      if (user && username === user.username && password === user.password) {
-        targetUser = user;
-      }
-    }
-
-    if (targetUser) {
-      setCurrentUser(targetUser); // 保存当前用户信息
-      setUsername('');
-      setPassword('');
-      setRole(null);
-
-      if (role === 'admin') navigation.navigate('Page1');
-      else if (role === 'doctor') navigation.navigate('Page2');
-      else if (role === 'patient') navigation.navigate('Page3');
-    } else {
-      AppToast.show('登录失败：用户名或密码错误', 'error');
-    }
-  };
-
   const handleLogin = async () => {
     if (!role || !username || !password) {
       AppToast.show('请选择角色并输入用户名、密码', 'error');
@@ -58,17 +26,21 @@ export default function Home({ navigation }: any) {
     }
 
     try {
-      const result =
-        role === 'patient'
-          ? await patientApi.login({ username, password })
-          : await userApi.login({ username, password });
+      // TODO: 目前暂时将所有角色的登录统一指向新的 login 接口，这可以根据后端实际情况调整
+      // 替换为真实数据，现在使用统一的 /dsod/users/login 接口 (返回 code: 1 为成功)
+      const result: any = await request('/dsod/users/login', {
+        method: 'POST',
+        body: { username, password },
+        skipAuth: true, // 登录接口不需要带 auth header
+      });
 
-      if (result.code !== 0) {
+      // 编码：1成功，0和其他数字为失败
+      if (result.code !== 1) {
         throw new Error(result.msg || '登录失败');
       }
 
-      const data: any = result.data || {};
-      const token = data.token || data.authentication || '';
+      const data = result.data || {};
+      const token = data.token || '';
       if (token) {
         setAuthToken(token);
       }
@@ -76,10 +48,8 @@ export default function Home({ navigation }: any) {
       const apiUser = {
         ...data,
         username: data.username || username,
-        password,
-        name: data.name || data.username || username,
-        role: role === 'patient' ? 'PATIENT' : data.role,
-        patientId: data.patientId || data.userId,
+        name: data.username || username, // TODO: 用 "ct" 占位？ "ct" 这里暂时作为 name
+        role: data.role || role,
       };
 
       setCurrentUser(apiUser, token);
@@ -87,12 +57,13 @@ export default function Home({ navigation }: any) {
       setPassword('');
       setRole(null);
 
+      // 根据实际角色分配跳转，目前先按用户选定的 role
       if (role === 'admin') navigation.navigate('Page1');
       else if (role === 'doctor') navigation.navigate('Page2');
       else navigation.navigate('Page3');
-    } catch (error) {
-      console.warn('API login failed, falling back to local users:', error);
-      loginByMockUser();
+    } catch (error: any) {
+      console.error('API login failed:', error);
+      AppToast.show(error?.message || String(error) || '网络请求失败', 'error');
     }
   };
 

@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
-import { getCurrentUser } from '../../data/users';
+import { getCurrentUser } from '../../store/user';
 
 export default function Page3({ navigation }: any) {
   const currentUser = getCurrentUser() || {};
