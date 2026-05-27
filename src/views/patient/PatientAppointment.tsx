@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,22 +6,72 @@ import {
   FlatList,
   TouchableOpacity,
 } from 'react-native';
-import { USERS } from '../../data/users';
+import { getCurrentUser, USERS } from '../../data/users';
 import { AppToast } from '../../components/Toast';
+import { patientApi } from '../../api';
 
 export default function PatientAppointment() {
   const [activeTab, setActiveTab] = useState<'list' | 'mine'>('list');
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [doctors, setDoctors] = useState<any[]>(USERS.doctor_list || []);
 
-  // 模拟医生列表
-  const doctors = USERS.doctor_list || [];
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAppointmentData = async () => {
+      try {
+        const [doctorResult, appointmentResult] = await Promise.all([
+          patientApi.doctorInfo(),
+          patientApi.appointments(),
+        ]);
+
+        const remoteDoctors = Array.isArray(doctorResult.data)
+          ? doctorResult.data.map((doctor: any, index: number) => ({
+              id: String(doctor.id || doctor.doctorId || index + 1),
+              name: doctor.name || doctor.username || `医生 ${index + 1}`,
+              specialty: doctor.specialty || doctor.department || '眼科',
+              available: doctor.available || ['周一上午', '周三下午'],
+            }))
+          : [];
+
+        const remoteAppointments = Array.isArray(appointmentResult.data)
+          ? appointmentResult.data.map((apt: any) => ({
+              id: String(apt.id),
+              docName: apt.doctorName || `医生 ${apt.doctorId || ''}`.trim(),
+              specialty: apt.specialty || '眼科',
+              time: apt.appointmentTime || apt.createTime || '-',
+              status:
+                apt.status === 'CONFIRMED'
+                  ? '已确认'
+                  : apt.status === 'CANCELLED'
+                  ? '已取消'
+                  : '待确认',
+            }))
+          : [];
+
+        if (!cancelled) {
+          if (remoteDoctors.length) setDoctors(remoteDoctors);
+          if (remoteAppointments.length) setAppointments(remoteAppointments);
+        }
+      } catch (error) {
+        console.warn('Load appointment data failed:', error);
+      }
+    };
+
+    loadAppointmentData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleBook = (doctor: any, time: string) => {
     AppToast.alert('确认预约', `您确定要预约 ${doctor.name} (${time}) 吗？`, [
       { text: '取消', style: 'cancel' },
       {
         text: '确认',
-        onPress: () => {
+        onPress: async () => {
+          const currentUser = getCurrentUser() || {};
           const newAppt = {
             id: Date.now().toString(),
             docName: doctor.name,
@@ -29,6 +79,18 @@ export default function PatientAppointment() {
             time: time,
             status: '待确认',
           };
+
+          try {
+            await patientApi.createAppointment({
+              patientId: Number(currentUser.patientId || currentUser.userId),
+              doctorId: Number(doctor.id),
+              appointmentTime: time,
+              status: 'PENDING',
+            });
+          } catch (error) {
+            console.warn('Create appointment failed:', error);
+          }
+
           setAppointments([...appointments, newAppt]);
           AppToast.show('预约请求已发送', 'success');
           setActiveTab('mine');
@@ -43,7 +105,19 @@ export default function PatientAppointment() {
       {
         text: '是的',
         style: 'destructive',
-        onPress: () => {
+        onPress: async () => {
+          const numericId = Number(id);
+          if (!Number.isNaN(numericId)) {
+            try {
+              await patientApi.updateAppointment({
+                id: numericId,
+                status: 'CANCELLED',
+              });
+            } catch (error) {
+              console.warn('Cancel appointment failed:', error);
+            }
+          }
+
           setAppointments(appointments.filter(a => a.id !== id));
           AppToast.show('预约已取消', 'info');
         },

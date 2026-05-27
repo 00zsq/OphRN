@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { AI_KNOWLEDGE_BASE } from '../../data/mockData';
+import { aiApi } from '../../api';
 
 interface Message {
   id: string;
@@ -28,7 +29,21 @@ export default function PatientAIChat() {
   ]);
   const [isTyping, setIsTyping] = useState(false);
 
-  const sendMessage = () => {
+  const extractAiAnswer = (response: any, fallback: string) => {
+    if (typeof response === 'string') return response;
+    if (!response || typeof response !== 'object') return fallback;
+
+    const body = response.body || response.data || response.result || response;
+    if (typeof body === 'string') return body;
+    if (body?.answer) return String(body.answer);
+    if (body?.content) return String(body.content);
+    if (body?.message) return String(body.message);
+    if (body?.text) return String(body.text);
+
+    return fallback;
+  };
+
+  const sendMessage = async () => {
     if (!text.trim()) return;
 
     const userMsg: Message = {
@@ -41,9 +56,8 @@ export default function PatientAIChat() {
     setText('');
     setIsTyping(true);
 
-    // 模拟AI匹配回答
     const matched = AI_KNOWLEDGE_BASE.find(k => inputText.includes(k.question));
-    const fullAnswer = matched
+    const fallbackAnswer = matched
       ? matched.answer
       : '抱歉，我的知识库目前主要涵盖常见眼病护理，您可以尝试问 "青光眼如何治疗" 或 "眼部日常护理"。';
 
@@ -57,6 +71,14 @@ export default function PatientAIChat() {
       ...prev,
       { id: botMsgId, text: '...', sender: 'bot' },
     ]);
+
+    let fullAnswer = fallbackAnswer;
+    try {
+      const response = await aiApi.chat(inputText);
+      fullAnswer = extractAiAnswer(response, fallbackAnswer);
+    } catch (error) {
+      console.warn('AI chat failed:', error);
+    }
 
     // 定时器逐字显示
     const interval = setInterval(() => {

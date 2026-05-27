@@ -2,6 +2,7 @@
   "name": "OphRN",
   "version": "0.0.1",
   "private": true,
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "android": "react-native run-android",
     "ios": "react-native run-ios",

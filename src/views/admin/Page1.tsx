@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 import { USERS } from '../../data/users';
 import { AppToast } from '../../components/Toast';
 import { getMockLogs } from '../../data/mockData';
+import { manageApi } from '../../api';
 
 // 定义统一的用户展示接口
 interface UnifiedUser {
@@ -22,9 +23,10 @@ interface UnifiedUser {
 
 export default function Page1() {
   const [searchText, setSearchText] = useState('');
+  const [remoteUsers, setRemoteUsers] = useState<UnifiedUser[]>([]);
 
-  // 整合所有用户数据
-  const allUsers: UnifiedUser[] = useMemo(() => {
+  // 整合本地演示数据，用作接口不可用时的降级数据
+  const fallbackUsers: UnifiedUser[] = useMemo(() => {
     const list: UnifiedUser[] = [];
 
     // 1. 添加管理员
@@ -77,6 +79,57 @@ export default function Page1() {
     return list;
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadUsers = async () => {
+      try {
+        const [userResult, patientResult] = await Promise.all([
+          manageApi.allUsers({ page: 1, pageSize: 100 }),
+          manageApi.allPatients({ page: 1, pageSize: 100 }),
+        ]);
+
+        const users = (userResult.data?.records || []).map((item: any) => ({
+          id: String(item.id || item.username),
+          username: item.username || '-',
+          name: item.username || '-',
+          role:
+            item.role === 'ADMIN'
+              ? '管理员'
+              : item.role === 'DOCTOR'
+              ? '医生'
+              : '患者',
+          info: item.email || item.createTime,
+        })) as UnifiedUser[];
+
+        const patients = (patientResult.data?.records || []).map(
+          (item: any) =>
+            ({
+              id: String(item.id || item.idCard || item.name),
+              username: item.idCard || '-',
+              name: item.name || '-',
+              role: '患者',
+              info: `${item.sex || ''} ${item.age ? `${item.age}岁` : ''}`.trim(),
+            } as UnifiedUser),
+        );
+
+        if (!cancelled && (users.length || patients.length)) {
+          setRemoteUsers([...users, ...patients]);
+        }
+      } catch (error) {
+        console.warn('Load users failed:', error);
+      }
+    };
+
+    loadUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const allUsers = remoteUsers.length ? remoteUsers : fallbackUsers;
+
   // 搜索过滤逻辑
   const filteredData = allUsers.filter(
     u =>
@@ -99,8 +152,39 @@ export default function Page1() {
         text: '查看日志',
         onPress: () => {
           // 根据用户角色和姓名获取特定日志
+          const numericId = Number(item.id);
+          if (!Number.isNaN(numericId)) {
+            manageApi
+              .operateLog({ userId: numericId, page: 1, pageSize: 10 })
+              .then(result => {
+                const records = result.data?.records || [];
+                const logs = records.length
+                  ? records
+                      .map((log: any) =>
+                        [
+                          log.operateTime || log.createTime || log.time,
+                          log.methodName || log.operation || log.content,
+                        ]
+                          .filter(Boolean)
+                          .join('  '),
+                      )
+                      .join('\n\n')
+                  : getMockLogs(item.role, item.name).join('\n\n');
+
+                AppToast.alert(`${item.name} 的操作日志`, logs, [
+                  { text: '关闭' },
+                ]);
+              })
+              .catch(() => {
+                const logs = getMockLogs(item.role, item.name).join('\n\n');
+                AppToast.alert(`${item.name} 的操作日志`, logs, [
+                  { text: '关闭' },
+                ]);
+              });
+            return;
+          }
+
           const logs = getMockLogs(item.role, item.name).join('\n\n');
-          // 再次弹出显示具体日志内容
           setTimeout(() => {
             AppToast.alert(`${item.name} 的操作日志`, logs, [{ text: '关闭' }]);
           }, 300);

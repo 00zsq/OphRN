@@ -52,7 +52,7 @@ export const ToastComponent = () => {
   // --- Toast State ---
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
-  const [toastType, setToastType] = useState<ToastType>('info');
+  const [_toastType, setToastType] = useState<ToastType>('info');
   const [fadeAnim] = useState(new Animated.Value(0));
 
   // --- Alert State ---

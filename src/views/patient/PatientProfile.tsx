@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { AppToast } from '../../components/Toast';
 import { getCurrentUser } from '../../data/users';
+import { patientApi } from '../../api';
 
 export default function PatientProfile() {
   const currentUser = getCurrentUser() || {};
@@ -28,8 +29,30 @@ export default function PatientProfile() {
   const [gender, setGender] = useState(currentUser.gender || '');
   const [phone, setPhone] = useState(currentUser.phone || '');
 
-  const handleSave = () => {
-    AppToast.show('保存成功：您的个人资料已更新', 'success');
+  const handleSave = async () => {
+    try {
+      if (currentUser.username) {
+        await patientApi.update({
+          id: currentUser.id,
+          username: currentUser.username,
+          password,
+          patientId: currentUser.patientId,
+        });
+      }
+
+      await patientApi.bind({
+        id: currentUser.patientId,
+        name: currentUser.name,
+        idCard,
+        age: Number(age) || undefined,
+        sex: gender,
+      });
+
+      AppToast.show('保存成功：您的个人资料已更新', 'success');
+    } catch (error) {
+      console.warn('Save profile failed:', error);
+      AppToast.show('资料已在本地更新，云端同步失败', 'info');
+    }
   };
 
   // 渲染通用卡片容器

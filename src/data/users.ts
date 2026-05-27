@@ -1,10 +1,19 @@
+import { clearAuthToken, setAuthToken } from '../api';
+
 // 简单的会话状态管理
 let currentUser: any = null;
 
-export const setCurrentUser = (user: any) => {
+export const setCurrentUser = (user: any, token?: string) => {
   currentUser = user;
+  if (token) {
+    setAuthToken(token);
+  }
 };
 export const getCurrentUser = () => currentUser;
+export const clearCurrentUser = () => {
+  currentUser = null;
+  clearAuthToken();
+};
 
 export const USERS = {
   admin: {

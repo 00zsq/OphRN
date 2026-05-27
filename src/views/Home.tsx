@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { USERS, setCurrentUser } from '../data/users';
 import { AppToast } from '../components/Toast';
+import { patientApi, setAuthToken, userApi } from '../api';
 
 // 背景图路径需要调整层级
 const bgImg = require('../assets/bgimg.jpg');
@@ -18,7 +19,7 @@ export default function Home({ navigation }: any) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
+  const loginByMockUser = () => {
     if (!role) return;
 
     let targetUser: any = null;
@@ -47,6 +48,51 @@ export default function Home({ navigation }: any) {
       else if (role === 'patient') navigation.navigate('Page3');
     } else {
       AppToast.show('登录失败：用户名或密码错误', 'error');
+    }
+  };
+
+  const handleLogin = async () => {
+    if (!role || !username || !password) {
+      AppToast.show('请选择角色并输入用户名、密码', 'error');
+      return;
+    }
+
+    try {
+      const result =
+        role === 'patient'
+          ? await patientApi.login({ username, password })
+          : await userApi.login({ username, password });
+
+      if (result.code !== 0) {
+        throw new Error(result.msg || '登录失败');
+      }
+
+      const data: any = result.data || {};
+      const token = data.token || data.authentication || '';
+      if (token) {
+        setAuthToken(token);
+      }
+
+      const apiUser = {
+        ...data,
+        username: data.username || username,
+        password,
+        name: data.name || data.username || username,
+        role: role === 'patient' ? 'PATIENT' : data.role,
+        patientId: data.patientId || data.userId,
+      };
+
+      setCurrentUser(apiUser, token);
+      setUsername('');
+      setPassword('');
+      setRole(null);
+
+      if (role === 'admin') navigation.navigate('Page1');
+      else if (role === 'doctor') navigation.navigate('Page2');
+      else navigation.navigate('Page3');
+    } catch (error) {
+      console.warn('API login failed, falling back to local users:', error);
+      loginByMockUser();
     }
   };
 

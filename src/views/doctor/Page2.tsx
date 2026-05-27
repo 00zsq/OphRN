@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
 import { USERS } from '../../data/users';
 import { DIAGNOSIS_RESULTS_LIST } from '../../data/mockData';
 import { AppToast } from '../../components/Toast';
+import { manageApi, reportApi } from '../../api';
 
 // 引入拆分的组件
 import { DiagnosisItem } from './DiagnosisItem';
@@ -33,6 +34,7 @@ export default function Page2() {
         DIAGNOSIS_RESULTS_LIST[index % DIAGNOSIS_RESULTS_LIST.length];
       return {
         id: `diag_${index}`,
+        recordId: undefined,
         patientName: patient.name,
         age: patient.age,
         gender: patient.gender,
@@ -70,13 +72,82 @@ export default function Page2() {
   const [modalVisible, setModalVisible] = useState(false);
   const [currentReview, setCurrentReview] = useState<any>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDoctorWork = async () => {
+      try {
+        const [historyResult, appointmentResult] = await Promise.all([
+          manageApi.diagnosisHistory({ page: 1, pageSize: 20 }),
+          manageApi.appointments(),
+        ]);
+
+        const remoteQueue = (historyResult.data?.records || []).map(
+          (record: any, index: number) => {
+            const diagnosis =
+              DIAGNOSIS_RESULTS_LIST[index % DIAGNOSIS_RESULTS_LIST.length];
+            return {
+              id: String(record.id || record.recordId || `diag_${index}`),
+              recordId: Number(record.id || record.recordId),
+              patientName:
+                record.patientName || record.name || record.patient?.name || '患者',
+              age: record.age || record.patient?.age || '-',
+              gender: record.sex || record.gender || record.patient?.sex || '-',
+              date: record.createTime || record.diagnosisTime || record.time || '-',
+              image: record.leftImage || record.image || MOCK_IMAGES[0],
+              aiResult: {
+                ...diagnosis,
+                riskLevel: record.riskLevel || diagnosis.riskLevel,
+                disease: record.disease || record.diagnosis || diagnosis.disease,
+                summary: record.summary || diagnosis.summary,
+                suggestion: record.suggestion || diagnosis.suggestion,
+              },
+              status: record.status === 'reviewed' ? 'reviewed' : 'pending',
+              doctorAdvice: record.doctorAdvice || '',
+              nextStep: record.nextStep || '',
+            };
+          },
+        );
+
+        const remoteAppointments = (appointmentResult.data || []).map(
+          (apt: any) => ({
+            id: String(apt.id),
+            patientName: apt.patientName || `患者 ${apt.patientId || ''}`.trim(),
+            time: apt.appointmentTime || apt.createTime || '-',
+            type: '门诊预约',
+            reason: apt.reason || '患者预约',
+            status:
+              apt.status === 'CONFIRMED'
+                ? 'confirmed'
+                : apt.status === 'CANCELLED'
+                ? 'rejected'
+                : 'pending',
+          }),
+        );
+
+        if (!cancelled) {
+          if (remoteQueue.length) setDiagnosisQueue(remoteQueue as any);
+          if (remoteAppointments.length) setAppointments(remoteAppointments as any);
+        }
+      } catch (error) {
+        console.warn('Load doctor work failed:', error);
+      }
+    };
+
+    loadDoctorWork();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // 1. 审核逻辑
   const openReviewModal = (item: any) => {
     setCurrentReview(item);
     setModalVisible(true);
   };
 
-  const handleSaveReview = (id: string, advice: string, nextStep: string) => {
+  const handleSaveReview = async (id: string, advice: string, nextStep: string) => {
     const updatedQueue = diagnosisQueue.map(item =>
       item.id === id
         ? {
@@ -89,11 +160,35 @@ export default function Page2() {
     );
     setDiagnosisQueue(updatedQueue as any);
     setModalVisible(false);
+
+    const recordId = Number(currentReview?.recordId || id);
+    if (!Number.isNaN(recordId)) {
+      try {
+        await reportApi.generate(recordId, 'ZH');
+      } catch (error) {
+        console.warn('Generate report failed:', error);
+      }
+    }
+
     AppToast.show('审核报告已保存并发送给患者', 'success');
   };
 
   // 2. 预约逻辑
-  const handleAppointment = (id: string, action: 'confirmed' | 'rejected') => {
+  const handleAppointment = async (
+    id: string,
+    action: 'confirmed' | 'rejected',
+  ) => {
+    if (action === 'confirmed') {
+      const numericId = Number(id);
+      if (!Number.isNaN(numericId)) {
+        try {
+          await manageApi.confirmAppointment(numericId);
+        } catch (error) {
+          console.warn('Confirm appointment failed:', error);
+        }
+      }
+    }
+
     const updated = appointments.map(apt =>
       apt.id === id ? { ...apt, status: action } : apt,
     );

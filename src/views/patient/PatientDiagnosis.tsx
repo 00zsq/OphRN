@@ -15,6 +15,8 @@ import { launchImageLibrary, launchCamera } from 'react-native-image-picker'; //
 import RNFS from 'react-native-fs';
 import { DIAGNOSIS_RESULTS_LIST, FOLLOW_UP_PLAN } from '../../data/mockData';
 import { AppToast } from '../../components/Toast';
+import { diagnosisApi, reportApi } from '../../api';
+import { getCurrentUser } from '../../data/users';
 
 // 引入本地 PDF 资源
 const reportAsset = require('../../data/report.pdf');
@@ -33,6 +35,7 @@ export default function PatientDiagnosis() {
 
   // 新增：用于存储本次随机抽取的诊断结果，默认取第一个以防空
   const [currentResult, setCurrentResult] = useState(DIAGNOSIS_RESULTS_LIST[0]);
+  const [currentReportId, setCurrentReportId] = useState<number | null>(null);
 
   // 重构：原 pickImage 改名为 openGallery，保留原有逻辑
   const openGallery = async (eye: 'left' | 'right') => {
@@ -108,24 +111,19 @@ export default function PatientDiagnosis() {
     ]);
   };
 
-  const startDiagnosis = () => {
+  const startDiagnosis = async () => {
     if (!leftEyeUri || !rightEyeUri) {
       AppToast.show('请先上传双眼照片', 'error');
       return;
     }
     setStatus('diagnosing');
 
-    // --- 1. 模拟随机诊断结果逻辑 ---
     const randomIndex = Math.floor(
       Math.random() * DIAGNOSIS_RESULTS_LIST.length,
     );
     setCurrentResult(DIAGNOSIS_RESULTS_LIST[randomIndex]);
-    // ----------------------------
 
-    // --- 2. 获取当前时间并计算复查日期 (模拟调用时间API) ---
-    // 实际项目中可替换为 fetch('http://worldtimeapi.org/...')
     const now = new Date();
-    // 假设复查周期为 3 个月
     now.setMonth(now.getMonth() + 3);
 
     // 格式化为 YYYY-MM-DD
@@ -135,12 +133,43 @@ export default function PatientDiagnosis() {
     const calculatedDate = `${year}-${month}-${day}`;
 
     setNextVisitDate(calculatedDate);
-    // ------------------------------------------------
 
-    // 模拟诊断过程
-    setTimeout(() => {
+    try {
+      const currentUser = getCurrentUser() || {};
+      const patient = {
+        id: Number(currentUser.patientId || currentUser.userId || currentUser.id),
+        name: currentUser.name || currentUser.username || '患者',
+        idCard: currentUser.idCard,
+        age: Number(currentUser.age) || undefined,
+        sex: currentUser.sex || currentUser.gender,
+      };
+
+      const result = await diagnosisApi.analyze(
+        [patient],
+        [leftEyeUri],
+        [rightEyeUri],
+      );
+      const firstRecord = result.data?.[0];
+      const reportOrRecordId = firstRecord
+        ? Number(Object.values(firstRecord)[0])
+        : NaN;
+
+      if (!Number.isNaN(reportOrRecordId)) {
+        setCurrentReportId(reportOrRecordId);
+        try {
+          const reportResult = await reportApi.generate(reportOrRecordId, 'ZH');
+          if (reportResult.data?.id) {
+            setCurrentReportId(reportResult.data.id);
+          }
+        } catch (error) {
+          console.warn('Generate report failed:', error);
+        }
+      }
+    } catch (error) {
+      console.warn('Diagnosis analyze failed:', error);
+    } finally {
       setStatus('finished');
-    }, 2500);
+    }
   };
 
   // 改良版：添加到日历并请求权限
@@ -260,11 +289,6 @@ export default function PatientDiagnosis() {
         }
       }
 
-      const source = Image.resolveAssetSource(reportAsset);
-      if (!source || !source.uri) {
-        throw new Error('无法解析报告文件资源');
-      }
-
       const destPath =
         Platform.OS === 'android'
           ? `${RNFS.DownloadDirectoryPath}/Report_${Date.now()}.pdf`
@@ -272,11 +296,29 @@ export default function PatientDiagnosis() {
 
       console.log('Start downloading to:', destPath);
 
-      const result = await RNFS.downloadFile({
+      const downloadSource = currentReportId
+        ? {
+            uri: reportApi.downloadUrl(currentReportId, 'pdf'),
+            headers: reportApi.downloadHeaders(),
+          }
+        : null;
+
+      const source = downloadSource || Image.resolveAssetSource(reportAsset);
+      if (!source || !source.uri) {
+        throw new Error('无法解析报告文件资源');
+      }
+
+      const downloadOptions: RNFS.DownloadFileOptions = {
         fromUrl: source.uri,
         toFile: destPath,
         begin: res => console.log('Download begin', res),
-      }).promise;
+      };
+
+      if ('headers' in source) {
+        downloadOptions.headers = source.headers;
+      }
+
+      const result = await RNFS.downloadFile(downloadOptions).promise;
 
       if (result.statusCode === 200) {
         AppToast.show(`保存成功：${destPath}`, 'success');
@@ -359,6 +401,7 @@ export default function PatientDiagnosis() {
               setLeftEyeUri(null);
               setRightEyeUri(null);
               setNextVisitDate('');
+              setCurrentReportId(null);
             }}
           >
             <Text style={{ color: '#666' }}>重新诊断</Text>
