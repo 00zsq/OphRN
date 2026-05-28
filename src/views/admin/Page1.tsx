@@ -20,6 +20,7 @@ interface UnifiedUser {
   role: '管理员' | '医生' | '医护' | '患者' | '机构' | '科研人员';
   roleValue: UserRole;
   email: string;
+  password?: string;
   status?: number;
   createTime?: string;
   info?: string; // 额外信息展示，如邮箱、状态、创建时间
@@ -64,13 +65,6 @@ const toOperateLog = (item: any): OperateLog => ({
 });
 
 const toUnifiedUser = (item: any): UnifiedUser => {
-  const statusText = item.status === 1 ? '启用' : '停用';
-  const infoParts = [
-    item.email ? `邮箱：${item.email}` : null,
-    item.status !== undefined ? `状态：${statusText}` : null,
-    item.createTime ? `创建时间：${item.createTime}` : null,
-  ].filter(Boolean);
-
   return {
     id: String(item.id || item.username || ''),
     username: item.username || '',
@@ -78,9 +72,9 @@ const toUnifiedUser = (item: any): UnifiedUser => {
     role: roleTextMap[item.role as UserRole] || '患者',
     roleValue: item.role,
     email: item.email || '',
+    password: item.password,
     status: item.status,
     createTime: item.createTime,
-    info: infoParts.join(' ｜ '),
   };
 };
 
@@ -163,10 +157,6 @@ export default function Page1() {
             trimmedSearchText && !Number.isNaN(numericUserId)
               ? numericUserId
               : undefined,
-          methodName:
-            trimmedSearchText && Number.isNaN(numericUserId)
-              ? trimmedSearchText
-              : undefined,
           page: 1,
           pageSize: 10,
         });
@@ -231,10 +221,6 @@ export default function Page1() {
           trimmedSearchText && !Number.isNaN(numericUserId)
             ? numericUserId
             : undefined,
-        methodName:
-          trimmedSearchText && Number.isNaN(numericUserId)
-            ? trimmedSearchText
-            : undefined,
         page: nextPage,
         pageSize: 10,
       });
@@ -294,6 +280,7 @@ export default function Page1() {
       const result = await userApi.updateByAdmin({
         id: numericId,
         username: editUsername.trim(),
+        password: editingUser.password,
         role: editRole,
         email: editEmail.trim(),
         status: nextStatus,
@@ -308,6 +295,7 @@ export default function Page1() {
         ...editingUser,
         id: numericId,
         username: editUsername.trim(),
+        password: editingUser.password,
         role: editRole,
         email: editEmail.trim(),
         status: nextStatus,
@@ -332,70 +320,87 @@ export default function Page1() {
   const renderLogItem = ({ item }: { item: OperateLog }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <View style={{ flex: 1 }}>
+        <View style={styles.logTitleBox}>
           <Text style={styles.name}>{item.methodName || '未知方法'}</Text>
-          <Text style={styles.value}>日志 ID：{item.id} ｜ 用户 ID：{item.userId}</Text>
+          <Text style={styles.userIdText}>日志 ID：{item.id} ｜ 用户 ID：{item.userId}</Text>
         </View>
         {item.costTime ? <Text style={styles.costTag}>{item.costTime}</Text> : null}
       </View>
-      <View style={styles.infoRow}>
-        <Text style={styles.label}>时间 :</Text>
-        <Text style={styles.value}>{item.operateTime}</Text>
-      </View>
-      <View style={styles.infoRow}>
-        <Text style={styles.label}>类名 :</Text>
-        <Text style={styles.value}>{item.className}</Text>
-      </View>
-      <View style={styles.infoRow}>
-        <Text style={styles.label}>参数 :</Text>
-        <Text style={styles.value} numberOfLines={3}>{item.methodParams}</Text>
-      </View>
-      <View style={styles.infoRow}>
-        <Text style={styles.label}>返回 :</Text>
-        <Text style={styles.value}>{item.returnValue}</Text>
+
+      <View style={styles.detailBox}>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>时间</Text>
+          <Text style={styles.detailValue}>{item.operateTime || '-'}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>类名</Text>
+          <Text style={styles.detailValue} numberOfLines={1}>{item.className || '-'}</Text>
+        </View>
+        <View style={styles.logParamsBox}>
+          <Text style={styles.detailLabel}>参数</Text>
+          <Text style={styles.logParamsText} numberOfLines={1} ellipsizeMode="tail">
+            {item.methodParams || '-'}
+          </Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>返回</Text>
+          <Text style={styles.detailValue} numberOfLines={1}>{item.returnValue || '-'}</Text>
+        </View>
       </View>
     </View>
   );
 
-  const renderItem = ({ item }: { item: UnifiedUser }) => (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={styles.name}>{item.name}</Text>
-          <View
-            style={[
-              styles.roleTag,
-              item.role === '管理员'
-                ? styles.bgAdmin
-                : item.role === '医生' || item.role === '医护'
-                ? styles.bgDoc
-                : styles.bgPat,
-            ]}
-          >
-            <Text style={styles.roleText}>{item.role}</Text>
+  const renderItem = ({ item }: { item: UnifiedUser }) => {
+    const statusText = item.status === 1 ? '启用' : '停用';
+
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.userTitleRow}>
+            <Text style={styles.name}>{item.name}</Text>
+            <Text style={styles.userIdText}>ID：{item.id}</Text>
+            <View
+              style={[
+                styles.roleTag,
+                item.role === '管理员'
+                  ? styles.bgAdmin
+                  : item.role === '医生' || item.role === '医护'
+                  ? styles.bgDoc
+                  : styles.bgPat,
+              ]}
+            >
+              <Text style={styles.roleText}>{item.role}</Text>
+            </View>
+          </View>
+          <TouchableOpacity onPress={() => openEditModal(item)}>
+            <Text style={styles.editLink}>管理</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.detailBox}>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>邮箱</Text>
+            <Text style={styles.detailValue} numberOfLines={1}>{item.email || '-'}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>状态</Text>
+            <Text
+              style={[
+                styles.statusValue,
+                item.status === 1 ? styles.statusEnabled : styles.statusDisabled,
+              ]}
+            >
+              {statusText}
+            </Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>创建时间</Text>
+            <Text style={styles.detailValue}>{item.createTime || '-'}</Text>
           </View>
         </View>
-        <TouchableOpacity onPress={() => openEditModal(item)}>
-          <Text style={styles.editLink}>管理</Text>
-        </TouchableOpacity>
       </View>
-
-      <View style={styles.infoRow}>
-        <Text style={styles.label}>用户 ID :</Text>
-        <Text style={styles.value}>{item.id}</Text>
-      </View>
-      <View style={styles.infoRow}>
-        <Text style={styles.label}>用户名 :</Text>
-        <Text style={styles.value}>{item.username}</Text>
-      </View>
-      {item.info ? (
-        <View style={styles.infoRow}>
-          <Text style={styles.label}>详细信息:</Text>
-          <Text style={styles.value}>{item.info}</Text>
-        </View>
-      ) : null}
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -479,7 +484,7 @@ export default function Page1() {
         <View style={styles.searchBox}>
           <TextInput
             style={styles.input}
-            placeholder="输入用户ID或方法名称查询日志"
+            placeholder="输入用户ID查询日志"
             value={logSearchText}
             onChangeText={setLogSearchText}
             autoCapitalize="none"
@@ -653,9 +658,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  userTitleRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  logTitleBox: { flex: 1 },
   name: { fontSize: 18, fontWeight: 'bold', color: '#333', marginRight: 8 },
-  roleTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  roleText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
+  userIdText: { color: '#777', fontSize: 13, marginRight: 8 },
+  roleTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  roleText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
   bgAdmin: { backgroundColor: '#333' },
   bgDoc: { backgroundColor: '#007AFF' },
   bgPat: { backgroundColor: '#34C759' },
@@ -681,8 +689,38 @@ const styles = StyleSheet.create({
   logTotal: { color: '#666', fontSize: 13 },
 
   infoRow: { flexDirection: 'row', marginBottom: 4 },
-  label: { width: 70, color: '#888', fontSize: 13 },
-  value: { flex: 1, color: '#444', fontSize: 13 },
+  label: { color: '#888', fontSize: 12, marginBottom: 4 },
+  value: { color: '#333', fontSize: 14, fontWeight: '600' },
+  detailBox: {
+    backgroundColor: '#FAFAFA',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEEEEE',
+  },
+  detailLabel: { width: 64, color: '#888', fontSize: 13 },
+  detailValue: { flex: 1, color: '#444', fontSize: 13 },
+  logParamsBox: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEEEEE',
+  },
+  logParamsText: {
+    flex: 1,
+    color: '#444',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  statusValue: { fontSize: 13, fontWeight: 'bold' },
+  statusEnabled: { color: '#34C759' },
+  statusDisabled: { color: '#F44336' },
   modalMask: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',

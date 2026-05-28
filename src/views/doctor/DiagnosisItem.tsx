@@ -7,6 +7,8 @@ interface Props {
 }
 
 export const DiagnosisItem = ({ item, onReviewPress }: Props) => {
+  const isLowRisk = item.aiResult.riskLevel === '低风险';
+
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -37,16 +39,26 @@ export const DiagnosisItem = ({ item, onReviewPress }: Props) => {
       ) : null}
 
       <View style={styles.contentRow}>
-        <View style={styles.aiInfo}>
-          <Text style={styles.aiTitle}>AI 智能诊断结果:</Text>
-          <Text style={styles.aiRisk}>
+        <View style={styles.metaLine}>
+          {item.idCard ? (
+            <Text style={styles.metaText} numberOfLines={1}>
+              身份证: {item.idCard}
+            </Text>
+          ) : null}
+          <Text style={styles.metaText}>
             风险等级:{' '}
-            <Text style={{ color: 'red' }}>{item.aiResult.riskLevel}</Text>
+            <Text style={[styles.riskValue, isLowRisk ? styles.riskLow : styles.riskHigh]}>
+              {item.aiResult.riskLevel}
+            </Text>
           </Text>
-          <Text style={styles.aiDisease}>疑似: {item.aiResult.disease}</Text>
-          {item.idCard ? <Text style={styles.date}>身份证: {item.idCard}</Text> : null}
-          <Text style={styles.date}>诊断时间: {item.date}</Text>
         </View>
+        <Text style={styles.aiDisease} numberOfLines={1}>
+          左眼: {item.aiResult.leftDisease || item.aiResult.disease}
+        </Text>
+        <Text style={styles.aiDisease} numberOfLines={1}>
+          右眼: {item.aiResult.rightDisease || item.aiResult.disease}
+        </Text>
+        <Text style={styles.date}>诊断时间: {item.date}</Text>
       </View>
 
       {item.status === 'reviewed' ? (
@@ -72,15 +84,15 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    padding: 14,
+    marginBottom: 10,
     elevation: 1,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   patientInfo: {},
   pName: { fontSize: 18, fontWeight: 'bold', color: '#333' },
@@ -96,11 +108,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#eee',
   },
-  contentRow: { marginBottom: 16 },
-  aiInfo: { flex: 1, gap: 6 },
-  aiTitle: { fontSize: 14, fontWeight: 'bold', color: '#555' },
-  aiRisk: { fontSize: 13, color: '#666' },
-  aiDisease: { fontSize: 13, color: '#666' },
+  contentRow: { marginBottom: 12, gap: 5 },
+  metaLine: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  metaText: { color: '#888', fontSize: 12 },
+  riskValue: { fontSize: 12, fontWeight: 'bold' },
+  riskLow: { color: '#34C759' },
+  riskHigh: { color: '#D32F2F' },
+  aiDisease: { fontSize: 13, color: '#666', lineHeight: 20 },
   date: { fontSize: 12, color: '#999' },
   actionBtn: {
     backgroundColor: '#007AFF',

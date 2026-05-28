@@ -13,7 +13,7 @@ import { patientApi, userApi } from '../api';
 import { setAuthToken } from '../api/client';
 
 // 背景图路径需要调整层级
-const bgImg = require('../assets/bgimg.jpg');
+const bgImg = require('../assets/HomebgImg.png');
 
 export default function Home({ navigation }: any) {
   const [role, setRole] = useState<'admin' | 'doctor' | 'patient' | null>(null);
@@ -38,6 +38,11 @@ export default function Home({ navigation }: any) {
       }
 
       const data = result.data || {};
+      const actualRole = String(data.role || '').toUpperCase();
+      if (role === 'admin' && actualRole !== 'ADMIN') {
+        throw new Error('非管理员，无法登录管理员端');
+      }
+
       const token = data.token || '';
       if (token) {
         setAuthToken(token);
@@ -67,35 +72,52 @@ export default function Home({ navigation }: any) {
     }
   };
 
-  // 自定义按钮组件
-  const CustomButton = ({ title, onPress, color = '#2196F3' }: any) => (
+  // 角色卡片：纯白卡，标题艺术化（大字号 + 字间距），副标题次要
+  const RoleCard = ({
+    title,
+    subtitle,
+    accent,
+    onPress,
+  }: {
+    title: string;
+    subtitle: string;
+    accent: string;
+    onPress: () => void;
+  }) => (
     <TouchableOpacity
-      style={[styles.customBtn, { backgroundColor: color }]}
+      style={styles.roleCard}
       onPress={onPress}
+      activeOpacity={0.85}
     >
-      <Text style={styles.btnText}>{title}</Text>
+      <Text style={[styles.roleTitle, { color: accent }]}>{title}</Text>
+      <Text style={styles.roleSubtitle}>{subtitle}</Text>
     </TouchableOpacity>
   );
 
   const renderLoginButtons = () => (
-    <View style={styles.card}>
-      <Text style={styles.titleText}>欢迎使用 OphRN</Text>
-      <Text style={styles.subtitleText}>请选择角色登录</Text>
+    <View style={styles.roleWrap}>
+      <View style={styles.brandWrap}>
+        <Text style={styles.titleText}>欢迎使用 OphRN</Text>
+        <Text style={styles.subtitleText}>智能眼底诊断 · 请选择角色登录</Text>
+      </View>
 
-      <CustomButton
-        title="管理员登录"
+      <RoleCard
+        title="管理员"
+        subtitle="后台数据管理与审核"
+        accent="#1976d2"
         onPress={() => setRole('admin')}
-        color="#72d175ff"
       />
-      <CustomButton
-        title="医生登录"
+      <RoleCard
+        title="医生"
+        subtitle="诊断审核与报告生成"
+        accent="#00897b"
         onPress={() => setRole('doctor')}
-        color="#5ba8e7ff"
       />
-      <CustomButton
-        title="患者登录"
+      <RoleCard
+        title="患者"
+        subtitle="眼底上传与历史报告"
+        accent="#5e35b1"
         onPress={() => setRole('patient')}
-        color="#dfb16cff"
       />
     </View>
   );
@@ -103,8 +125,9 @@ export default function Home({ navigation }: any) {
   const renderLoginForm = () => (
     <View style={styles.card}>
       <Text style={styles.titleText}>
-        {role === 'admin' ? '管理员' : role === 'doctor' ? '医生' : '患者'}通道
+        {role === 'admin' ? '管理员' : role === 'doctor' ? '医生' : '患者'}登录
       </Text>
+      <Text style={styles.subtitleText}>请输入账号信息</Text>
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
@@ -112,7 +135,7 @@ export default function Home({ navigation }: any) {
           value={username}
           onChangeText={setUsername}
           autoCapitalize="none"
-          placeholderTextColor="#999"
+          placeholderTextColor="#9aa0a6"
         />
         <TextInput
           style={styles.input}
@@ -120,11 +143,17 @@ export default function Home({ navigation }: any) {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
-          placeholderTextColor="#999"
+          placeholderTextColor="#9aa0a6"
         />
       </View>
 
-      <CustomButton title="登 录" onPress={handleLogin} color="#673AB7" />
+      <TouchableOpacity
+        style={styles.primaryBtn}
+        onPress={handleLogin}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.primaryBtnText}>登 录</Text>
+      </TouchableOpacity>
       <TouchableOpacity
         style={styles.linkBtn}
         onPress={() => {
@@ -153,54 +182,96 @@ export default function Home({ navigation }: any) {
 
 const styles = StyleSheet.create({
   background: { flex: 1, width: '100%', height: '100%' },
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
 
   // 卡片样式
   card: {
-    width: '85%',
-    backgroundColor: 'rgba(255, 255, 255, 0.7)', // 白色背景，微透明
-    borderRadius: 20,
-    padding: 30,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: 22,
+    paddingHorizontal: 22,
+    paddingVertical: 28,
+    shadowColor: '#1f3b6d',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    elevation: 6,
   },
+
+  // 角色选择不需要外层白卡，直接呈现在背景上，避免出现"白框套白框"
+  roleWrap: { width: '100%' },
+
+  brandWrap: { alignItems: 'center', marginBottom: 22 },
 
   titleText: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1c1f23',
+    textAlign: 'center',
+    marginBottom: 6,
   },
-  subtitleText: { fontSize: 16, color: '#666', marginBottom: 20 },
+  subtitleText: {
+    fontSize: 13,
+    color: '#5f6368',
+    marginBottom: 18,
+    textAlign: 'center',
+  },
 
-  // 按钮样式
-  customBtn: {
+  // 角色卡片：纯白卡，标题艺术化
+  roleCard: {
     width: '100%',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 15,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
-  btnText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  roleTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 6,
+    textAlign: 'center',
+  },
+  roleSubtitle: {
+    fontSize: 12,
+    color: '#9aa0a6',
+    marginTop: 4,
+    textAlign: 'center',
+    letterSpacing: 1,
+  },
+
+  // 登录主按钮
+  primaryBtn: {
+    width: '100%',
+    paddingVertical: 13,
+    borderRadius: 12,
+    backgroundColor: '#1976d2',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 4 },
 
   // 输入框样式
-  inputContainer: { width: '100%', marginBottom: 10 },
+  inputContainer: { width: '100%', marginBottom: 6 },
   input: {
     width: '100%',
-    height: 50,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    marginBottom: 15,
-    fontSize: 16,
-    color: '#333',
+    height: 48,
+    backgroundColor: '#f4f6f8',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+    fontSize: 15,
+    color: '#1c1f23',
+    borderWidth: 1,
+    borderColor: '#e3e6ea',
   },
 
   // 链接按钮样式
-  linkBtn: { marginTop: 10, padding: 5 },
-  linkText: { color: '#666', textDecorationLine: 'underline' },
+  linkBtn: { marginTop: 14, padding: 6, alignItems: 'center' },
+  linkText: { color: '#5f6368', fontSize: 13 },
 });

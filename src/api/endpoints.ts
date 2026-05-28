@@ -1,7 +1,10 @@
 import {
   appendFile,
+  appendJsonFile,
   buildApiUrl,
+  getApiBaseUrl,
   getAuthHeaders,
+  getAuthToken,
   request,
   type QueryParams,
 } from './client';
@@ -63,9 +66,13 @@ export const guestApi = {
     appendFile(formData, 'leftImage', leftImage, 'left.jpg');
     appendFile(formData, 'rightImage', rightImage, 'right.jpg');
 
-    return request<ApiResult<GuestAnalyzeRecord[]>>('/dsod/guest/analyze', {
+    const analyzeBaseUrl = getApiBaseUrl().replace(/:8080$/, ':8081');
+
+    return request<ApiResult<GuestAnalyzeRecord[]>>(`${analyzeBaseUrl}/dsod/guest/analyze`, {
       method: 'POST',
       formData,
+      skipAuth: true,
+      absoluteUrl: true,
     });
   },
 };
@@ -155,13 +162,20 @@ export const reportApi = {
 };
 
 export const diagnosisApi = {
-  analyze: (
+  analyze: async (
     patients: DiagnosisPatientPayload[],
     leftImages: Array<string | UploadFile>,
     rightImages: Array<string | UploadFile>,
   ) => {
     const formData = new FormData();
-    formData.append('patients', JSON.stringify(patients));
+    const patientData = patients.map(patient => ({
+      name: patient.name,
+      idCard: patient.idCard,
+      age: patient.age,
+      sex: patient.sex,
+    }));
+
+    await appendJsonFile(formData, 'patients', patientData, 'patients.json');
     leftImages.forEach((image, index) =>
       appendFile(formData, 'leftImage', image, `left_${index + 1}.jpg`),
     );
@@ -170,10 +184,12 @@ export const diagnosisApi = {
     );
 
     return request<ApiResult<DiagnosisAnalyzeRecord[]>>(
-      '/dsod/diagnosis/analyze',
+      getApiBaseUrl().replace(/:8080$/, ':8081') + '/dsod/diagnosis/analyze',
       {
         method: 'POST',
         formData,
+        authHeaderName: 'authentication',
+        absoluteUrl: true,
       },
     );
   },
@@ -237,10 +253,6 @@ export const patientApi = {
     request<ApiResult<PageResult<Patient>>>('/dsod/manage/page/allpatientlist', {
       query,
     }),
-  recordsByPatient: (id?: number) =>
-    request<ApiResult<DiagnosisRecord[]>>('/dsod/manage/page/record', {
-      query: { id },
-    }),
   update: (body: PatientUser) =>
     request<ApiResult<unknown>>('/dsod/patients/update', {
       method: 'POST',
@@ -267,7 +279,7 @@ export const patientApi = {
     request<ApiResult<DiagnosisReport[]>>('/dsod/patients/report'),
   downloadUrl: (reportId: number, format = 'pdf') =>
     buildApiUrl('/dsod/patients/download/{reportId}', { format }, { reportId }),
-  downloadHeaders: () => getAuthHeaders(),
+  downloadHeaders: () => getAuthToken() ? { token: getAuthToken() } : {},
 };
 
 export const dataApi = {

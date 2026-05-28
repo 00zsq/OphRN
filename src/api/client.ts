@@ -1,3 +1,4 @@
+import RNFS from 'react-native-fs';
 import type { ApiResult, UploadFile } from './types';
 
 export type QueryParams = Record<
@@ -14,6 +15,7 @@ type RequestOptions = {
   formData?: FormData;
   skipAuth?: boolean;
   absoluteUrl?: boolean;
+  authHeaderName?: 'authentication' | 'token';
 };
 
 const DEFAULT_API_BASE_URL = 'http://120.79.247.123:8080';
@@ -39,6 +41,8 @@ export const clearAuthToken = () => {
 
 export const getAuthHeaders = (): Record<string, string> =>
   authToken ? { authentication: authToken } : {};
+
+const isPatientApiPath = (path: string) => path.includes('/dsod/patients/');
 
 const encodeQuery = (params?: QueryParams) => {
   if (!params) return '';
@@ -80,7 +84,8 @@ export async function request<T = unknown>(
   };
 
   if (!options.skipAuth && authToken) {
-    requestHeaders.authentication = authToken;
+    const authHeaderName = options.authHeaderName || (isPatientApiPath(path) ? 'token' : 'authentication');
+    requestHeaders[authHeaderName] = authToken;
   }
 
   const init: RequestInit = {
@@ -121,15 +126,23 @@ export const assertSuccess = <T>(result: ApiResult<T>) => {
   return result.data;
 };
 
+const guessUploadType = (name: string) => {
+  const lowerName = name.toLowerCase();
+  if (lowerName.endsWith('.png')) return 'image/png';
+  if (lowerName.endsWith('.webp')) return 'image/webp';
+  return 'image/jpeg';
+};
+
 export const createUploadFile = (
   file: string | UploadFile,
   fallbackName: string,
 ): UploadFile => {
   if (typeof file !== 'string') {
+    const name = file.name || fallbackName;
     return {
       uri: file.uri,
-      name: file.name || fallbackName,
-      type: file.type || 'image/jpeg',
+      name,
+      type: file.type || guessUploadType(name),
     };
   }
 
@@ -137,7 +150,7 @@ export const createUploadFile = (
   return {
     uri: file,
     name: guessedName,
-    type: 'image/jpeg',
+    type: guessUploadType(guessedName),
   };
 };
 
@@ -148,4 +161,19 @@ export const appendFile = (
   fallbackName: string,
 ) => {
   formData.append(key, createUploadFile(file, fallbackName) as unknown as Blob);
+};
+
+export const appendJsonFile = async (
+  formData: FormData,
+  key: string,
+  value: unknown,
+  filename: string,
+) => {
+  const path = `${RNFS.CachesDirectoryPath}/${Date.now()}_${filename}`;
+  await RNFS.writeFile(path, JSON.stringify(value), 'utf8');
+  (formData as any).append(key, {
+    uri: 'file://' + path,
+    name: filename,
+    type: 'application/json',
+  });
 };
