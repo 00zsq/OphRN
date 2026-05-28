@@ -42,7 +42,7 @@ export default function Page3({ navigation }: any) {
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
         <Text style={styles.welcomeText}>
-          欢迎回来，{currentUser.name || currentUser.username || 'Patient'}
+          欢迎回来，{currentUser.name || currentUser.username || '患者'}
         </Text>
         <Text style={styles.subText}>请选择您需要的服务</Text>
       </View>

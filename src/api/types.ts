@@ -65,9 +65,41 @@ export interface DiagnosisReport {
   id?: number;
   recordId?: number;
   reportContent?: string;
-  format?: string;
-  language?: string;
+  format?: 'PDF' | 'PNG' | 'HTML' | string;
+  language?: 'ZH' | 'EN' | string;
   createTime?: string;
+}
+
+export interface DiagnosisRecord {
+  id?: number;
+  imageId?: number;
+  patientId?: number;
+  diagnosisTime?: string;
+  leftDiseaseResults?: string;
+  rightDiseaseResults?: string;
+}
+
+export interface DiagnosisAnalyzeRecord {
+  recordId?: number;
+  patientId?: number;
+}
+
+export interface GuestAnalyzeRecord {
+  leftImage?: {
+    originalPath?: string;
+    processedPath?: string | null;
+  };
+  rightImage?: {
+    originalPath?: string;
+    processedPath?: string | null;
+  };
+  leftConfidence?: number[];
+  rightConfidence?: number[];
+  leftDiseaseResult?: string[];
+  rightDiseaseResult?: string[];
+  leftDiseaseIds?: number[];
+  rightDiseaseIds?: number[];
+  processedImgPaths?: string[];
 }
 
 export interface DiseaseConfidence {
@@ -79,6 +111,18 @@ export interface DiseaseConfidence {
 export interface FeedbackDTO {
   userId?: number;
   content: string;
+}
+
+export interface AiChatRequest {
+  question: string;
+  threadId?: string;
+  enableWebSearch?: boolean;
+  allowBusinessToolCall?: boolean;
+}
+
+export interface AiChatResponse {
+  threadId?: string;
+  data?: string;
 }
 
 export interface DiagnosisPatientPayload {

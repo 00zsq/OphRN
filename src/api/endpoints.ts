@@ -6,12 +6,17 @@ import {
   type QueryParams,
 } from './client';
 import type {
+  AiChatRequest,
+  AiChatResponse,
   ApiResult,
   AppUser,
   Appointment,
+  DiagnosisAnalyzeRecord,
   DiagnosisPatientPayload,
+  DiagnosisRecord,
   DiagnosisReport,
   DiseaseConfidence,
+  GuestAnalyzeRecord,
   FeedbackDTO,
   LoginVO,
   PageResult,
@@ -58,7 +63,7 @@ export const guestApi = {
     appendFile(formData, 'leftImage', leftImage, 'left.jpg');
     appendFile(formData, 'rightImage', rightImage, 'right.jpg');
 
-    return request<ApiResult<Record<string, unknown>>>('/dsod/guest/analyze', {
+    return request<ApiResult<GuestAnalyzeRecord[]>>('/dsod/guest/analyze', {
       method: 'POST',
       formData,
     });
@@ -85,7 +90,7 @@ export const manageApi = {
       query,
     }),
   recordsByPatient: (id?: number) =>
-    request<ApiResult<unknown>>('/dsod/manage/page/record', {
+    request<ApiResult<DiagnosisRecord[]>>('/dsod/manage/page/record', {
       query: { id },
     }),
   userById: (id?: number) =>
@@ -139,12 +144,12 @@ export const manageApi = {
 };
 
 export const reportApi = {
-  generate: (recordId: number, language = 'ZH') =>
+  generate: (recordId: number, language: 'ZH' | 'EN' = 'ZH') =>
     request<ApiResult<DiagnosisReport>>('/dsod/reports/generate', {
       method: 'POST',
       query: { recordId, language },
     }),
-  downloadUrl: (reportId: number, format = 'pdf') =>
+  downloadUrl: (reportId: number, format: 'pdf' | 'png' | 'html' = 'pdf') =>
     buildApiUrl('/dsod/reports/download/{reportId}', { format }, { reportId }),
   downloadHeaders: () => getAuthHeaders(),
 };
@@ -164,7 +169,7 @@ export const diagnosisApi = {
       appendFile(formData, 'rightImage', image, `right_${index + 1}.jpg`),
     );
 
-    return request<ApiResult<Array<Record<string, number>>>>(
+    return request<ApiResult<DiagnosisAnalyzeRecord[]>>(
       '/dsod/diagnosis/analyze',
       {
         method: 'POST',
@@ -192,10 +197,16 @@ export const statisticsApi = {
 };
 
 export const aiApi = {
-  chat: (question: string) =>
-    request<unknown>('/ai/chat', {
+  chat: (body: AiChatRequest) =>
+    request<AiChatResponse>('http://120.79.247.123:3000/api/chat', {
       method: 'POST',
-      body: { question },
+      body: {
+        enableWebSearch: false,
+        allowBusinessToolCall: false,
+        ...body,
+      },
+      skipAuth: true,
+      absoluteUrl: true,
     }),
 };
 
@@ -217,6 +228,19 @@ export const patientApi = {
     }),
   logout: () => request<ApiResult<unknown>>('/dsod/patients/logout'),
   doctorInfo: () => request<ApiResult<unknown[]>>('/dsod/patients/doctorinfo'),
+  allPatients: (
+    query: QueryParams & { page: number; pageSize: number } = {
+      page: 1,
+      pageSize: 10,
+    },
+  ) =>
+    request<ApiResult<PageResult<Patient>>>('/dsod/manage/page/allpatientlist', {
+      query,
+    }),
+  recordsByPatient: (id?: number) =>
+    request<ApiResult<DiagnosisRecord[]>>('/dsod/manage/page/record', {
+      query: { id },
+    }),
   update: (body: PatientUser) =>
     request<ApiResult<unknown>>('/dsod/patients/update', {
       method: 'POST',

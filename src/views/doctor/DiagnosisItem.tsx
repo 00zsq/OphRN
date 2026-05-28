@@ -28,13 +28,15 @@ export const DiagnosisItem = ({ item, onReviewPress }: Props) => {
         </View>
       </View>
 
+      {item.processedImages?.length ? (
+        <View style={styles.imageRow}>
+          {item.processedImages.map((uri: string, index: number) => (
+            <Image key={`${uri}_${index}`} source={{ uri }} style={styles.resultImage} />
+          ))}
+        </View>
+      ) : null}
+
       <View style={styles.contentRow}>
-        <Image
-          source={
-            typeof item.image === 'string' ? { uri: item.image } : item.image
-          }
-          style={styles.thumbnail}
-        />
         <View style={styles.aiInfo}>
           <Text style={styles.aiTitle}>AI 智能诊断结果:</Text>
           <Text style={styles.aiRisk}>
@@ -42,7 +44,8 @@ export const DiagnosisItem = ({ item, onReviewPress }: Props) => {
             <Text style={{ color: 'red' }}>{item.aiResult.riskLevel}</Text>
           </Text>
           <Text style={styles.aiDisease}>疑似: {item.aiResult.disease}</Text>
-          <Text style={styles.date}>{item.date}</Text>
+          {item.idCard ? <Text style={styles.date}>身份证: {item.idCard}</Text> : null}
+          <Text style={styles.date}>诊断时间: {item.date}</Text>
         </View>
       </View>
 
@@ -58,7 +61,7 @@ export const DiagnosisItem = ({ item, onReviewPress }: Props) => {
           style={styles.actionBtn}
           onPress={() => onReviewPress(item)}
         >
-          <Text style={styles.btnText}>开始审核 & 编辑报告</Text>
+          <Text style={styles.btnText}>更新病例</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -86,15 +89,15 @@ const styles = StyleSheet.create({
   tagWarn: { backgroundColor: '#FFF3E0' },
   tagSuccess: { backgroundColor: '#E8F5E9' },
   tagText: { fontSize: 12, color: '#F57C00' },
-  contentRow: { flexDirection: 'row', marginBottom: 16 },
-  thumbnail: {
-    width: 80,
-    height: 80,
+  imageRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  resultImage: {
+    flex: 1,
+    height: 120,
     borderRadius: 8,
     backgroundColor: '#eee',
-    marginRight: 12,
   },
-  aiInfo: { flex: 1, justifyContent: 'space-around' },
+  contentRow: { marginBottom: 16 },
+  aiInfo: { flex: 1, gap: 6 },
   aiTitle: { fontSize: 14, fontWeight: 'bold', color: '#555' },
   aiRisk: { fontSize: 13, color: '#666' },
   aiDisease: { fontSize: 13, color: '#666' },

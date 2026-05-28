@@ -22,25 +22,12 @@ export default function PatientAIChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '0',
-      text: '您好，我是您的眼科AI助手。您可以问我关于青光眼、白内障等眼疾的护理建议。',
+      text: '您好，我是眼科 AI 助手，可以回答眼科疾病、检查和报告相关问题。',
       sender: 'bot',
     },
   ]);
   const [isTyping, setIsTyping] = useState(false);
-
-  const extractAiAnswer = (response: any, fallback: string) => {
-    if (typeof response === 'string') return response;
-    if (!response || typeof response !== 'object') return fallback;
-
-    const body = response.body || response.data || response.result || response;
-    if (typeof body === 'string') return body;
-    if (body?.answer) return String(body.answer);
-    if (body?.content) return String(body.content);
-    if (body?.message) return String(body.message);
-    if (body?.text) return String(body.text);
-
-    return fallback;
-  };
+  const [threadId, setThreadId] = useState<string | undefined>();
 
   const sendMessage = async () => {
     if (!text.trim()) return;
@@ -55,7 +42,7 @@ export default function PatientAIChat() {
     setText('');
     setIsTyping(true);
 
-    const fallbackAnswer = '抱歉，我的知识库目前主要涵盖常见眼病护理，您可以尝试问 "青光眼如何治疗" 或 "眼部日常护理"。';
+    const fallbackAnswer = 'AI 服务暂时不可用，请稍后重试。';
 
     // 模拟流式输出效果
     let currentText = '';
@@ -70,8 +57,16 @@ export default function PatientAIChat() {
 
     let fullAnswer = fallbackAnswer;
     try {
-      const response = await aiApi.chat(inputText);
-      fullAnswer = extractAiAnswer(response, fallbackAnswer);
+      const response = await aiApi.chat({
+        question: inputText,
+        threadId,
+        enableWebSearch: false,
+        allowBusinessToolCall: false,
+      });
+      if (response.threadId) {
+        setThreadId(response.threadId);
+      }
+      fullAnswer = response.data || fallbackAnswer;
     } catch (error) {
       console.warn('AI chat failed:', error);
     }
@@ -143,9 +138,10 @@ export default function PatientAIChat() {
           <Text style={styles.sendText}>发送</Text>
         </TouchableOpacity>
       </View>
-      {/* 快捷提问提示 */}
       <View style={styles.chips}>
-        <Text style={{ fontSize: 12, color: '#999' }}>快捷问题功能待接口实现</Text>
+        <Text style={{ fontSize: 12, color: '#999' }}>
+          {threadId ? `上下文会话已建立：${threadId.slice(0, 8)}...` : '首次提问后自动建立上下文会话'}
+        </Text>
       </View>
     </KeyboardAvoidingView>
   );

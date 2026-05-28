@@ -13,6 +13,7 @@ type RequestOptions = {
   headers?: Record<string, string>;
   formData?: FormData;
   skipAuth?: boolean;
+  absoluteUrl?: boolean;
 };
 
 const DEFAULT_API_BASE_URL = 'http://120.79.247.123:8080';
@@ -72,7 +73,7 @@ export async function request<T = unknown>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { body, formData, headers, method = 'GET', query, pathParams } = options;
+  const { absoluteUrl, body, formData, headers, method = 'GET', query, pathParams } = options;
   const requestHeaders: Record<string, string> = {
     Accept: 'application/json',
     ...headers,
@@ -94,7 +95,8 @@ export async function request<T = unknown>(
     init.body = JSON.stringify(body);
   }
 
-  const response = await fetch(buildApiUrl(path, query, pathParams), init);
+  const url = absoluteUrl ? `${path}${encodeQuery(query)}` : buildApiUrl(path, query, pathParams);
+  const response = await fetch(url, init);
   const contentType = response.headers.get('content-type') || '';
   const payload = contentType.includes('application/json')
     ? await response.json()

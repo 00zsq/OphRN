@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,53 +6,106 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Image,
   ImageBackground,
 } from 'react-native';
 import { AppToast } from '../../components/Toast';
-// TODO: 待接口实现 - 用户数据将从后端接口获取
-// import { getCurrentUser } from '../../data/users';
 import { patientApi } from '../../api';
+import type { DiagnosisRecord } from '../../api/types';
+import { getCurrentUser, setCurrentUser } from '../../store/user';
 
 export default function PatientProfile() {
-  // TODO: 待接口实现 - currentUser 将从后端接口获取
-  const currentUser: any = {};
-  const {
-    medicalHistory = [],
-    treatments = [],
-    doctorOrders = [],
-  } = currentUser;
+  const currentUser: any = getCurrentUser() || {};
+  const [patientInfo, setPatientInfo] = useState<any>(currentUser.patient || {});
+  const [password, setPassword] = useState('');
+  const [idCard, setIdCard] = useState('');
+  const [age, setAge] = useState('');
+  const [gender, setGender] = useState('');
+  const [name, setName] = useState(currentUser.name || currentUser.username || '');
+  const [medicalHistory, setMedicalHistory] = useState<DiagnosisRecord[]>([]);
 
-  // 编辑态 State - 初始化使用当前登录用户信息
-  const [password, setPassword] = useState(currentUser.password || '123456');
-  const [idCard, setIdCard] = useState(currentUser.idCard || '');
-  const [age, setAge] = useState(currentUser.age || '');
-  const [gender, setGender] = useState(currentUser.gender || '');
-  const [phone, setPhone] = useState(currentUser.phone || '');
+  useEffect(() => {
+    let cancelled = false;
 
-  const handleSave = async () => {
-    try {
-      if (currentUser.username) {
-        await patientApi.update({
-          id: currentUser.id,
-          username: currentUser.username,
-          password,
-          patientId: currentUser.patientId,
+    const loadPatientInfo = async () => {
+      const username = currentUser.name || currentUser.username;
+      if (!username) return;
+
+      try {
+        const result = await patientApi.allPatients({
+          name: username,
+          page: 1,
+          pageSize: 10,
         });
-      }
+        const patient = result.data?.records?.[0];
+        if (!patient || cancelled) return;
 
+        setPatientInfo(patient);
+        setName(patient.name || '');
+        setIdCard(patient.idCard || '');
+        setAge(patient.age ? String(patient.age) : '');
+        setGender(patient.sex || '');
+        await setCurrentUser({ ...currentUser, patient, patientId: patient.id });
+
+        const recordResult = await patientApi.recordsByPatient(patient.id);
+        if (!cancelled) {
+          setMedicalHistory(recordResult.data || []);
+        }
+      } catch (error) {
+        console.warn('Load patient info failed:', error);
+      }
+    };
+
+    loadPatientInfo();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleSavePassword = async () => {
+    if (!password.trim()) {
+      AppToast.show('请输入新密码', 'error');
+      return;
+    }
+
+    try {
+      await patientApi.update({
+        username: currentUser.username,
+        password,
+      });
+      AppToast.show('密码修改成功', 'success');
+      setPassword('');
+    } catch (error) {
+      console.warn('Save password failed:', error);
+      AppToast.show('密码修改失败', 'error');
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    try {
       await patientApi.bind({
-        id: currentUser.patientId,
-        name: currentUser.name,
+        id: patientInfo.id || currentUser.patientId,
+        name,
         idCard,
         age: Number(age) || undefined,
         sex: gender,
       });
 
-      AppToast.show('保存成功：您的个人资料已更新', 'success');
+      AppToast.show('个人信息保存成功', 'success');
     } catch (error) {
       console.warn('Save profile failed:', error);
-      AppToast.show('资料已在本地更新，云端同步失败', 'info');
+      AppToast.show('个人信息保存失败', 'error');
+    }
+  };
+
+  const formatDiseaseResults = (value?: string) => {
+    if (!value) return '暂无';
+
+    try {
+      const results = JSON.parse(value);
+      return Array.isArray(results) ? results.join('、') : value;
+    } catch {
+      return value;
     }
   };
 
@@ -70,29 +123,46 @@ export default function PatientProfile() {
     <ScrollView contentContainerStyle={styles.container}>
       {/* 头部展示区 */}
       <ImageBackground
-        source={{
-          uri: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80',
-        }}
+        source={require('../../assets/bgimg.jpg')}
         style={styles.headerBg}
         imageStyle={{ borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }}
       >
         <View style={styles.headerContent}>
-          <Image
-            source={{
-              uri:
-                currentUser.avatar ||
-                'https://randomuser.me/api/portraits/lego/1.jpg',
-            }}
-            style={styles.avatar}
-          />
-          <Text style={styles.nameText}>{currentUser.name || '未登录'}</Text>
-          {/* 移除黄金会员展示 */}
+          <View style={styles.avatarPlaceholder}>
+            <Text style={styles.avatarText}>{(name || currentUser.username || '患').slice(0, 1)}</Text>
+          </View>
+          <Text style={styles.nameText}>{name || currentUser.username || '患者'}</Text>
         </View>
       </ImageBackground>
 
       <View style={styles.body}>
-        {/* 1. 基础信息编辑 */}
+        {/* 1. 密码修改 */}
+        <SectionCard title="密码修改" color="#673AB7">
+          <View style={styles.formItem}>
+            <Text style={styles.label}>新密码</Text>
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholder="请输入新密码"
+            />
+          </View>
+          <TouchableOpacity style={styles.btnSave} onPress={handleSavePassword}>
+            <Text style={styles.btnText}>保存密码</Text>
+          </TouchableOpacity>
+        </SectionCard>
+
+        {/* 2. 基础信息编辑 */}
         <SectionCard title="基础信息维护" color="#2196F3">
+          <View style={styles.formItem}>
+            <Text style={styles.label}>姓名</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+            />
+          </View>
           <View style={styles.formRow}>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>年龄</Text>
@@ -120,81 +190,33 @@ export default function PatientProfile() {
               onChangeText={setIdCard}
             />
           </View>
-          <View style={styles.formItem}>
-            <Text style={styles.label}>联系电话</Text>
-            <TextInput
-              style={styles.input}
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-            />
-          </View>
-          <View style={styles.formItem}>
-            <Text style={styles.label}>登录密码</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              editable={false} // 模拟不可直接修改密码，提示
-            />
-          </View>
-          <TouchableOpacity style={styles.btnSave} onPress={handleSave}>
-            <Text style={styles.btnText}>保存修改</Text>
+          <TouchableOpacity style={styles.btnSave} onPress={handleSaveProfile}>
+            <Text style={styles.btnText}>保存个人信息</Text>
           </TouchableOpacity>
         </SectionCard>
 
-        {/* 2. 个人病史 */}
-        <SectionCard title="个人病史 (Medical History)" color="#FF9800">
-          {medicalHistory &&
-            medicalHistory.map((item: any, index: number) => (
-              <View key={index} style={styles.historyItem}>
+        {/* 3. 个人病史 */}
+        <SectionCard title="个人病史" color="#FF9800">
+          {medicalHistory.length ? (
+            medicalHistory.map((item) => (
+              <View key={item.id || `${item.patientId}_${item.diagnosisTime}`} style={styles.historyItem}>
                 <View style={styles.dateBadge}>
-                  <Text style={styles.dateText}>{item.date}</Text>
+                  <Text style={styles.dateText}>{item.diagnosisTime || '暂无时间'}</Text>
                 </View>
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.historyCondition}>{item.condition}</Text>
+                <View style={styles.historyContent}>
+                  <Text style={styles.historyCondition}>诊断记录 #{item.id || '-'}</Text>
                   <Text style={styles.historyStatus}>
-                    当前状态: {item.status}
+                    左眼: {formatDiseaseResults(item.leftDiseaseResults)}
+                  </Text>
+                  <Text style={styles.historyStatus}>
+                    右眼: {formatDiseaseResults(item.rightDiseaseResults)}
                   </Text>
                 </View>
               </View>
-            ))}
-        </SectionCard>
-
-        {/* 3. 医嘱 */}
-        <SectionCard title="特别医嘱 (Doctor's Orders)" color="#E91E63">
-          {doctorOrders &&
-            doctorOrders.map((order: any, index: number) => (
-              <View key={index} style={styles.orderBox}>
-                <View style={[styles.orderTag, { backgroundColor: '#FCE4EC' }]}>
-                  <Text style={{ color: '#C2185B', fontSize: 12 }}>
-                    {order.tag}
-                  </Text>
-                </View>
-                <Text style={styles.orderText}>{order.content}</Text>
-              </View>
-            ))}
-        </SectionCard>
-
-        {/* 4. 治疗记录 - 与医生和预约对齐 */}
-        <SectionCard title="近期治疗记录" color="#4CAF50">
-          {treatments &&
-            treatments.map((t: any, index: number) => (
-              <View key={index} style={styles.treatItem}>
-                <View style={styles.treatHeader}>
-                  <Text style={styles.treatDate}>{t.date}</Text>
-                  <Text style={styles.treatHospital}>{t.hospital}</Text>
-                </View>
-                <Text style={styles.treatTitle}>
-                  {t.item}{' '}
-                  <Text style={{ fontSize: 12, color: '#666' }}>
-                    | {t.doctor}
-                  </Text>
-                </Text>
-                <Text style={styles.treatResult}>{t.result}</Text>
-              </View>
-            ))}
+            ))
+          ) : (
+            <Text style={styles.emptyText}>暂无诊断记录</Text>
+          )}
         </SectionCard>
       </View>
     </ScrollView>
@@ -206,14 +228,18 @@ const styles = StyleSheet.create({
   // Header
   headerBg: { width: '100%', height: 220, justifyContent: 'center' },
   headerContent: { alignItems: 'center', marginTop: 20 },
-  avatar: {
+  avatarPlaceholder: {
     width: 90,
     height: 90,
     borderRadius: 45,
     borderWidth: 3,
     borderColor: 'white',
     marginBottom: 10,
+    backgroundColor: '#673AB7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  avatarText: { color: 'white', fontSize: 36, fontWeight: 'bold' },
   nameText: { fontSize: 24, fontWeight: 'bold', color: 'white' },
   tag: {
     backgroundColor: 'rgba(255,255,255,0.2)',
@@ -289,44 +315,6 @@ const styles = StyleSheet.create({
   historyCondition: { fontSize: 16, color: '#333', fontWeight: '600' },
   historyStatus: { fontSize: 13, color: '#888', marginTop: 2 },
 
-  // Doctor Orders
-  orderBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#FAFAFA',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  orderTag: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginRight: 10,
-    marginTop: 2,
-  },
-  orderText: { flex: 1, lineHeight: 20, color: '#444' },
-
-  // Treatments
-  treatItem: {
-    marginBottom: 15,
-    borderLeftWidth: 1,
-    borderLeftColor: '#E0E0E0',
-    paddingLeft: 15,
-    marginLeft: 5,
-  },
-  treatHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 5,
-  },
-  treatDate: { fontSize: 12, color: '#999' },
-  treatHospital: { fontSize: 12, color: '#2196F3', fontWeight: 'bold' },
-  treatTitle: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  treatResult: { fontSize: 13, color: '#555', fontStyle: 'italic' },
+  historyContent: { flex: 1, marginLeft: 10 },
+  emptyText: { color: '#999', fontSize: 14, textAlign: 'center', paddingVertical: 12 },
 });

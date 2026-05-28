@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Modal,
   ScrollView,
-  Image,
   TextInput,
   TouchableOpacity,
 } from 'react-native';
@@ -48,16 +47,14 @@ export const ReviewModal = ({ visible, data, onClose, onSave }: Props) => {
         <ScrollView style={styles.modalContent}>
           {data && (
             <>
-              <Text style={styles.sectionTitle}>1. 眼底影像检查</Text>
-              <Image
-                source={
-                  typeof data.image === 'string'
-                    ? { uri: data.image }
-                    : data.image
-                }
-                style={styles.largeImage}
-                resizeMode="contain"
-              />
+              <Text style={styles.sectionTitle}>1. 患者基本信息</Text>
+              <View style={styles.patientBox}>
+                <Text style={styles.aiText}>姓名: {data.patientName}</Text>
+                <Text style={styles.aiText}>身份证: {data.idCard}</Text>
+                <Text style={styles.aiText}>年龄: {data.age}</Text>
+                <Text style={styles.aiText}>性别: {data.gender}</Text>
+                <Text style={styles.aiText}>诊断时间: {data.date}</Text>
+              </View>
 
               <Text style={styles.sectionTitle}>2. AI 智能分析</Text>
               <View style={styles.aiBox}>
@@ -123,10 +120,9 @@ const styles = StyleSheet.create({
     borderLeftColor: '#007AFF',
     paddingLeft: 8,
   },
-  largeImage: {
-    width: '100%',
-    height: 200,
-    backgroundColor: '#f0f0f0',
+  patientBox: {
+    backgroundColor: '#F8F9FA',
+    padding: 12,
     borderRadius: 8,
     marginBottom: 10,
   },

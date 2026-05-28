@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { setCurrentUser } from '../store/user';
 import { AppToast } from '../components/Toast';
-import { setAuthToken, request } from '../api/client';
+import { patientApi, userApi } from '../api';
+import { setAuthToken } from '../api/client';
 
 // 背景图路径需要调整层级
 const bgImg = require('../assets/bgimg.jpg');
@@ -26,13 +27,10 @@ export default function Home({ navigation }: any) {
     }
 
     try {
-      // TODO: 目前暂时将所有角色的登录统一指向新的 login 接口，这可以根据后端实际情况调整
-      // 替换为真实数据，现在使用统一的 /dsod/users/login 接口 (返回 code: 1 为成功)
-      const result: any = await request('/dsod/users/login', {
-        method: 'POST',
-        body: { username, password },
-        skipAuth: true, // 登录接口不需要带 auth header
-      });
+      const result: any =
+        role === 'patient'
+          ? await patientApi.login({ username, password })
+          : await userApi.login({ username, password });
 
       // 编码：1成功，0和其他数字为失败
       if (result.code !== 1) {
@@ -47,8 +45,10 @@ export default function Home({ navigation }: any) {
 
       const apiUser = {
         ...data,
+        id: data.userId || data.id,
+        userId: data.userId || data.id,
         username: data.username || username,
-        name: data.username || username, // TODO: 用 "ct" 占位？ "ct" 这里暂时作为 name
+        name: data.name || data.username || username,
         role: data.role || role,
       };
 

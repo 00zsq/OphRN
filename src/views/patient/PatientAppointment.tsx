@@ -6,100 +6,135 @@ import {
   FlatList,
   TouchableOpacity,
 } from 'react-native';
-// TODO: 待接口实现 - 用户数据将从后端接口获取
-// import { getCurrentUser, USERS } from '../../data/users';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { AppToast } from '../../components/Toast';
 import { patientApi } from '../../api';
 
 export default function PatientAppointment() {
   const [activeTab, setActiveTab] = useState<'list' | 'mine'>('list');
   const [appointments, setAppointments] = useState<any[]>([]);
-  // TODO: 待接口实现 - 医生列表默认值暂时为空数组
   const [doctors, setDoctors] = useState<any[]>([]);
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
+  const [timePickerDate, setTimePickerDate] = useState(new Date());
+  const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
+  const [editingAppointment, setEditingAppointment] = useState<any>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadAppointmentData = async (showError = true) => {
+    try {
+      const [doctorResult, appointmentResult] = await Promise.all([
+        patientApi.doctorInfo(),
+        patientApi.appointments(),
+      ]);
 
-    const loadAppointmentData = async () => {
-      try {
-        const [doctorResult, appointmentResult] = await Promise.all([
-          patientApi.doctorInfo(),
-          patientApi.appointments(),
-        ]);
+      const doctorList = Array.isArray(doctorResult.data)
+        ? doctorResult.data.map((doctor: any, index: number) => ({
+            id: String(doctor.id || doctor.doctorId || index + 1),
+            name: doctor.name || doctor.username,
+            email: doctor.email || '',
+            status: doctor.status,
+            createTime: doctor.createTime,
+          }))
+        : [];
 
-        const remoteDoctors = Array.isArray(doctorResult.data)
-          ? doctorResult.data.map((doctor: any, index: number) => ({
-              id: String(doctor.id || doctor.doctorId || index + 1),
-              name: doctor.name || doctor.username || `医生 ${index + 1}`,
-              specialty: doctor.specialty || doctor.department || '眼科',
-              available: doctor.available || ['周一上午', '周三下午'],
-            }))
-          : [];
-
-        const remoteAppointments = Array.isArray(appointmentResult.data)
-          ? appointmentResult.data.map((apt: any) => ({
+      const remoteAppointments = Array.isArray(appointmentResult.data)
+        ? appointmentResult.data.map((apt: any) => {
+            const doctor = doctorList.find(item => Number(item.id) === Number(apt.doctorId));
+            return {
               id: String(apt.id),
-              docName: apt.doctorName || `医生 ${apt.doctorId || ''}`.trim(),
-              specialty: apt.specialty || '眼科',
-              time: apt.appointmentTime || apt.createTime || '-',
+              doctorId: String(apt.doctorId || ''),
+              docName: doctor?.name || '',
+              time: apt.appointmentTime || '-',
+              rawStatus: apt.status,
               status:
                 apt.status === 'CONFIRMED'
                   ? '已确认'
                   : apt.status === 'CANCELLED'
                   ? '已取消'
                   : '待确认',
-            }))
-          : [];
+              confirmTime: apt.confirmTime,
+              cancelTime: apt.cancelTime,
+              createTime: apt.createTime,
+            };
+          })
+        : [];
 
-        if (!cancelled) {
-          if (remoteDoctors.length) setDoctors(remoteDoctors);
-          if (remoteAppointments.length) setAppointments(remoteAppointments);
-        }
-      } catch (error) {
-        console.warn('Load appointment data failed:', error);
+      setDoctors(doctorList);
+      setAppointments(remoteAppointments);
+    } catch (error) {
+      console.warn('Load appointment data failed:', error);
+      if (showError) {
+        AppToast.show('预约数据加载失败', 'error');
       }
-    };
+    }
+  };
 
-    loadAppointmentData();
-
-    return () => {
-      cancelled = true;
-    };
+  useEffect(() => {
+    loadAppointmentData(false);
   }, []);
 
-  const handleBook = (doctor: any, time: string) => {
-    AppToast.alert('确认预约', `您确定要预约 ${doctor.name} (${time}) 吗？`, [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '确认',
-        onPress: async () => {
-          // TODO: 待接口实现 - getCurrentUser 将从后端获取或使用本地存储
-          const currentUser: any = {};
-          const newAppt = {
-            id: Date.now().toString(),
-            docName: doctor.name,
-            specialty: doctor.specialty,
-            time: time,
-            status: '待确认',
-          };
+  const parseAppointmentDate = (time?: string) => {
+    if (!time || time === '-') return new Date();
 
-          try {
-            await patientApi.createAppointment({
-              patientId: Number(currentUser.patientId || currentUser.userId),
-              doctorId: Number(doctor.id),
-              appointmentTime: time,
-              status: 'PENDING',
-            });
-          } catch (error) {
-            console.warn('Create appointment failed:', error);
-          }
+    const parsed = new Date(time.replace(' ', 'T'));
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  };
 
-          setAppointments([...appointments, newAppt]);
-          AppToast.show('预约请求已发送', 'success');
-          setActiveTab('mine');
-        },
-      },
-    ]);
+  const openBookModal = (doctor: any) => {
+    setSelectedDoctor(doctor);
+    setEditingAppointment(null);
+    setTimePickerDate(new Date());
+    setTimePickerVisible(true);
+  };
+
+  const openEditModal = (appointment: any) => {
+    setSelectedDoctor(null);
+    setEditingAppointment(appointment);
+    setTimePickerDate(parseAppointmentDate(appointment.time));
+    setTimePickerVisible(true);
+  };
+
+  const closeTimePicker = () => {
+    setTimePickerVisible(false);
+    setSelectedDoctor(null);
+    setEditingAppointment(null);
+  };
+
+  const formatAppointmentTime = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hour = String(date.getHours()).padStart(2, '0');
+    const minute = String(date.getMinutes()).padStart(2, '0');
+    const second = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+  };
+
+  const handleConfirmAppointmentTime = async (date: Date) => {
+    const appointmentTime = formatAppointmentTime(date);
+
+    try {
+      if (editingAppointment) {
+        await patientApi.updateAppointment({
+          id: Number(editingAppointment.id),
+          appointmentTime,
+          status: editingAppointment.rawStatus || 'PENDING',
+        });
+        AppToast.show('预约时间已修改', 'success');
+      } else if (selectedDoctor) {
+        await patientApi.createAppointment({
+          doctorId: Number(selectedDoctor.id),
+          appointmentTime,
+        });
+        AppToast.show('预约请求已发送', 'success');
+      }
+
+      closeTimePicker();
+      await loadAppointmentData();
+      setActiveTab('mine');
+    } catch (error) {
+      console.warn('Save appointment failed:', error);
+      AppToast.show('预约保存失败', 'error');
+    }
   };
 
   const handleCancel = (id: string) => {
@@ -110,19 +145,19 @@ export default function PatientAppointment() {
         style: 'destructive',
         onPress: async () => {
           const numericId = Number(id);
-          if (!Number.isNaN(numericId)) {
-            try {
-              await patientApi.updateAppointment({
-                id: numericId,
-                status: 'CANCELLED',
-              });
-            } catch (error) {
-              console.warn('Cancel appointment failed:', error);
-            }
-          }
+          if (Number.isNaN(numericId)) return;
 
-          setAppointments(appointments.filter(a => a.id !== id));
-          AppToast.show('预约已取消', 'info');
+          try {
+            await patientApi.updateAppointment({
+              id: numericId,
+              status: 'CANCELLED',
+            });
+            await loadAppointmentData();
+            AppToast.show('预约已取消', 'info');
+          } catch (error) {
+            console.warn('Cancel appointment failed:', error);
+            AppToast.show('取消预约失败', 'error');
+          }
         },
       },
     ]);
@@ -132,19 +167,13 @@ export default function PatientAppointment() {
     <View style={styles.card}>
       <View style={styles.docInfo}>
         <Text style={styles.docName}>{item.name}</Text>
-        <Text style={styles.docSpec}>{item.specialty}</Text>
+        <Text style={styles.docSpec}>ID: {item.id}</Text>
       </View>
-      <View style={styles.timesContainer}>
-        {item.available.map((time: string, idx: number) => (
-          <TouchableOpacity
-            key={idx}
-            style={styles.timeTag}
-            onPress={() => handleBook(item, time)}
-          >
-            <Text style={styles.timeText}>{time}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {item.email ? <Text style={styles.info}>邮箱: {item.email}</Text> : null}
+      {item.createTime ? <Text style={styles.info}>创建时间: {item.createTime}</Text> : null}
+      <TouchableOpacity style={styles.btnPrimary} onPress={() => openBookModal(item)}>
+        <Text style={styles.btnPrimaryText}>选择时间预约</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -161,12 +190,15 @@ export default function PatientAppointment() {
           {item.status}
         </Text>
       </View>
-      <Text style={styles.info}>科室: {item.specialty}</Text>
-      <Text style={styles.info}>时间: {item.time}</Text>
+      <Text style={styles.info}>医生 ID: {item.doctorId || '-'}</Text>
+      <Text style={styles.info}>预约时间: {item.time}</Text>
+      {item.createTime ? <Text style={styles.info}>创建时间: {item.createTime}</Text> : null}
+      {item.confirmTime ? <Text style={styles.info}>确认时间: {item.confirmTime}</Text> : null}
+      {item.cancelTime ? <Text style={styles.info}>取消时间: {item.cancelTime}</Text> : null}
       <View style={styles.actions}>
         <TouchableOpacity
           style={styles.btnOutline}
-          onPress={() => AppToast.show('修改功能开发中', 'info')}
+          onPress={() => openEditModal(item)}
         >
           <Text>修改</Text>
         </TouchableOpacity>
@@ -216,6 +248,7 @@ export default function PatientAppointment() {
           data={doctors}
           keyExtractor={item => item.id}
           renderItem={renderDoctor}
+          ListEmptyComponent={<Text style={styles.empty}>暂无医生信息</Text>}
           contentContainerStyle={styles.list}
         />
       ) : (
@@ -227,6 +260,15 @@ export default function PatientAppointment() {
           contentContainerStyle={styles.list}
         />
       )}
+
+      <DateTimePickerModal
+        isVisible={timePickerVisible}
+        mode="datetime"
+        locale="zh-CN"
+        date={timePickerDate}
+        onConfirm={handleConfirmAppointmentTime}
+        onCancel={closeTimePicker}
+      />
     </View>
   );
 }
@@ -261,9 +303,14 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 5,
   },
-  timesContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  timeTag: { backgroundColor: '#E3F2FD', padding: 8, borderRadius: 5 },
-  timeText: { color: '#2196F3', fontSize: 12 },
+  btnPrimary: {
+    backgroundColor: '#2196F3',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  btnPrimaryText: { color: 'white', fontWeight: 'bold' },
   empty: { textAlign: 'center', marginTop: 50, color: '#999' },
   row: {
     flexDirection: 'row',
@@ -285,4 +332,5 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 20,
   },
+
 });
