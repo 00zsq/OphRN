@@ -291,13 +291,13 @@ export default function Page2() {
       if (diagnosisResult.code !== 1) {
         throw new Error(diagnosisResult.msg || '诊断记录更新失败');
       }
-      AppToast.show('诊断记录已保存', 'success');
+      AppToast.show('病例信息已保存', 'success');
 
       const guestResult = await guestApi.analyze(leftEyeUri, rightEyeUri);
       if (guestResult.code !== 1) {
         throw new Error(guestResult.msg || 'AI 图像分析失败');
       }
-      AppToast.show('AI 图像分析完成', 'success');
+      AppToast.show('AI 影像分析已完成', 'success');
 
       const diagnosisRecord = diagnosisResult.data?.[0] || {};
       const newRecordId = Number(
@@ -364,7 +364,7 @@ export default function Page2() {
       }
       setDownloadReportFormat(reportFormat);
       setReportContent(report?.reportContent || '');
-      AppToast.show('报告生成成功', 'success');
+      AppToast.show('诊断报告已生成', 'success');
     } catch (error: any) {
       console.warn('Generate report failed:', error);
       AppToast.show(error?.message || '报告生成失败，请稍后重试', 'error');
@@ -409,14 +409,10 @@ export default function Page2() {
           },
         }).fetch('GET', fromUrl, headers);
 
-        // DownloadManager 不返回标准 HTTP status，用 path() 是否拿到落地路径来判断成功
+        // DownloadManager 模式 promise 不抛错即视为成功；res.path() 在部分机型可能为 null
         const savedPath = res.path();
         console.log('[downloadReport] saved path', savedPath, 'info', res.info());
-        if (savedPath) {
-          AppToast.alert('下载完成', `已保存到：\n${savedPath}`);
-        } else {
-          throw new Error('下载失败：DownloadManager 未返回文件路径');
-        }
+        AppToast.alert('下载完成', savedPath ? `已保存到：\n${savedPath}` : '已保存到系统下载目录');
       } else {
         // iOS: 下载到 App Documents 目录，由用户通过文件 App 访问
         const destPath = `${ReactNativeBlobUtil.fs.dirs.DocumentDir}/${filename}`;

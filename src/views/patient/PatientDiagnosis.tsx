@@ -412,13 +412,10 @@ export default function PatientDiagnosis() {
           },
         }).fetch('GET', fromUrl, headers);
 
+        // DownloadManager 模式下 promise 不抛错即视为成功；res.path() 在部分机型可能返回 null，不能作为唯一判定依据
         const savedPath = res.path();
         console.log('[downloadReport] saved path', savedPath, 'info', res.info());
-        if (savedPath) {
-          AppToast.alert('下载完成', `已保存到：\n${savedPath}`);
-        } else {
-          throw new Error('下载失败：DownloadManager 未返回文件路径');
-        }
+        AppToast.alert('下载完成', savedPath ? `已保存到：\n${savedPath}` : '已保存到系统下载目录');
       } else {
         const destPath = `${ReactNativeBlobUtil.fs.dirs.DocumentDir}/${filename}`;
         const res = await ReactNativeBlobUtil.config({
