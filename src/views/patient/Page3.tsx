@@ -6,8 +6,10 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import { getCurrentUser } from '../../store/user';
 
 export default function Page3({ navigation }: any) {
+  const currentUser = getCurrentUser() || {};
   // 菜单配置
   const menus = [
     {
@@ -39,7 +41,9 @@ export default function Page3({ navigation }: any) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.welcomeText}>欢迎回来，Patient</Text>
+        <Text style={styles.welcomeText}>
+          欢迎回来，{currentUser.name || currentUser.username || '患者'}
+        </Text>
         <Text style={styles.subText}>请选择您需要的服务</Text>
       </View>
 

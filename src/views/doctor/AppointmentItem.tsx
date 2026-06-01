@@ -10,22 +10,19 @@ export const AppointmentItem = ({ item, onAction }: Props) => {
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Text style={styles.pName}>{item.patientName}</Text>
+        <Text style={styles.pName}>预约 #{item.id}</Text>
         <Text style={styles.date}>{item.time}</Text>
       </View>
       <View style={styles.aptDetail}>
-        <Text style={styles.aptType}>{item.type}</Text>
-        <Text style={styles.reason}>主诉: {item.reason}</Text>
+        <Text style={styles.aptType}>患者 ID: {item.patientId}</Text>
+        <Text style={styles.reason}>医生 ID: {item.doctorId}</Text>
+        {item.createTime ? <Text style={styles.reason}>创建时间: {item.createTime}</Text> : null}
+        {item.confirmTime ? <Text style={styles.reason}>确认时间: {item.confirmTime}</Text> : null}
+        {item.cancelTime ? <Text style={styles.reason}>取消时间: {item.cancelTime}</Text> : null}
       </View>
 
       {item.status === 'pending' ? (
         <View style={styles.btnRow}>
-          <TouchableOpacity
-            style={[styles.miniBtn, styles.btnReject]}
-            onPress={() => onAction(item.id, 'rejected')}
-          >
-            <Text style={styles.miniBtnText}>拒绝</Text>
-          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.miniBtn, styles.btnConfirm]}
             onPress={() => onAction(item.id, 'confirmed')}
@@ -75,7 +72,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   reason: { fontSize: 14, color: '#555' },
-  btnRow: { flexDirection: 'row', gap: 10 },
+  btnRow: { flexDirection: 'row' },
   miniBtn: {
     flex: 1,
     paddingVertical: 8,
@@ -83,7 +80,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
   },
-  btnReject: { borderColor: '#dd524d', backgroundColor: '#fff' },
   btnConfirm: {
     backgroundColor: '#007AFF',
     borderColor: '#007AFF',
